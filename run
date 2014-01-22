@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+
+usage() {
+	echo "usage: run <hosts ... >"
+	exit 1
+}
+
+if [ -z "$*" ]; then
+	usage
+fi
+
+if [ ! -f bootstrap -o ! -f setup -o ! -f maintenance ]; then
+	echo "Missing files, in the right directory?"
+	exit 1
+fi
+
+mkdir -p logs
+
+for host in "$@"; do
+	((
+		echo -n "Copying to host ... "
+		scp -i ~/.ssh/dasbot.opendnssec.org \
+			-oStrictHostKeyChecking=no \
+			-oPreferredAuthentications=publickey \
+			-oServerAliveInterval=10 \
+			-oServerAliveCountMax=12 \
+			-oConnectTimeout=10 \
+			-- \
+			bootstrap \
+			setup \
+			maintenance \
+			"dasbot@$host": >/dev/null ||
+		exit 1
+		echo "done"
+		
+		for what in bootstrap setup maintenance; do
+			echo "Running $what ... waiting"
+			echo "Running $what at `date`" >> "logs/$host.log"
+			rm -rf -- "logs/$host.last.$what"
+			touch -- "logs/$host.last.$what"
+			ssh -q -i ~/.ssh/dasbot.opendnssec.org \
+				-oStrictHostKeyChecking=no \
+				-oPreferredAuthentications=publickey \
+				-oServerAliveInterval=10 \
+				-oServerAliveCountMax=12 \
+				-oConnectTimeout=10 \
+				-- \
+				dasbot@$host \
+				"./$what 2>&1" >>"logs/$host.last.$what" 2>&1
+			status="$?"
+
+			if [ "$status" = "0" ]; then
+				try=0
+				while true; do
+					if [ $try -gt 10 ]; then
+						echo "... ERROR unknown at `date`" >> "logs/$host.log"
+						echo "Running $what ... ERROR unknown: no DONE in last log"
+						exit 1
+					fi
+					if tail -n 1 -- "logs/$host.last.$what" | grep -q '^DONE'; then
+						break
+					fi
+					try=$(( try + 1 ))
+					sleep 0.5
+				done
+			fi
+			
+			cat -- "logs/$host.last.$what" >> "logs/$host.log"
+			
+			if [ "$status" != "0" ]; then
+				echo "... ERROR $status at `date`" >> "logs/$host.log"
+				echo "Running $what ... ERROR $status:"
+				tail -n 6 -- "logs/$host.last.$what" | head -n 5
+				echo "ERROR $status" >>"logs/$host.last.$what"
+				exit 1
+			fi
+			echo "Running $what ... done"
+			echo "... done at `date`" >> "logs/$host.log"
+			
+			if tail -n 1 -- "logs/$host.last.$what" | grep -q 'REBOOT'; then
+				echo "Rebooting ... waiting"
+				echo "Rebooting at `date`" >> "logs/$host.log"
+				sleep 120
+				try=0
+				while true; do
+					if [ $try -gt 120 ]; then
+						echo "Rebooting ... ERROR waited too long"
+						echo "... ERROR rebooting at `date`" >> "logs/$host.log"
+						exit 1
+					fi
+					up=`ssh -q -i ~/.ssh/dasbot.opendnssec.org \
+				-oStrictHostKeyChecking=no \
+				-oPreferredAuthentications=publickey \
+				-oServerAliveInterval=10 \
+				-oServerAliveCountMax=12 \
+				-oConnectTimeout=10 \
+				-- \
+				dasbot@$host \
+				echo OK 2>/dev/null`
+					if [ "$up" = "OK" ]; then
+						break
+					fi
+					try=$(( try + 1 ))
+					sleep 10
+				done
+				echo "Rebooting ... done"
+				echo "... done at `date`" >> "logs/$host.log"
+			fi
+		done
+	) | while read line; do
+		echo "$host: $line"
+	done) &
+done
+
+wait
+
+for host in "$@"; do
+	last_logs=`ls -1 -- "logs/$host.last."* 2>/dev/null`
+	if [ -z "$last_logs" ]; then
+		echo "Missing last log for $host"
+		exit 1
+	fi
+	
+	if tail -n 1 -- "logs/$host.last."* | grep '^ERROR'; then
+		exit 1
+	fi
+done
+
+exit 0

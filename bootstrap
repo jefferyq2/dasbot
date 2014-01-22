@@ -1,0 +1,71 @@
+#!/bin/sh
+
+detect_distribution ()
+{
+	DISTRIBUTION="UNKNOWN"
+	
+	if [ -f "/etc/debian_version" ]; then
+		if uname -a 2>/dev/null | grep -q -i ubuntu 2>/dev/null; then
+			DISTRIBUTION="ubuntu"
+		else
+			DISTRIBUTION="debian"
+		fi
+	elif [ -f "/etc/redhat-release" ]; then
+		if grep -q -i centos /etc/redhat-release 2>/dev/null; then
+			DISTRIBUTION="centos"
+		elif grep -q -i fedora /etc/redhat-release 2>/dev/null; then
+			DISTRIBUTION="fedora"
+		elif grep -q -i "scientific linux" /etc/redhat-release 2>/dev/null; then
+			DISTRIBUTION="sl"
+		else
+			DISTRIBUTION="redhat"
+		fi
+	elif [ -f "/etc/os-release" ]; then
+		if grep -q -i opensuse /etc/os-release 2>/dev/null; then
+			DISTRIBUTION="opensuse"
+		fi
+	elif [ -f "/etc/SuSE-release" ]; then
+		if grep -q -i "suse linux enterprise" /etc/SuSE-release 2>/dev/null; then
+			DISTRIBUTION="suse"
+		fi
+	elif uname -a 2>/dev/null | grep -q -i freebsd 2>/dev/null; then
+		DISTRIBUTION="freebsd"
+	elif uname -a 2>/dev/null | grep -q -i sunos 2>/dev/null; then
+		DISTRIBUTION="sunos"
+	elif uname -a 2>/dev/null | grep -q -i openbsd 2>/dev/null; then
+		DISTRIBUTION="openbsd"
+	elif uname -a 2>/dev/null | grep -q -i netbsd 2>/dev/null; then
+		DISTRIBUTION="netbsd"
+	fi
+
+	export DISTRIBUTION
+}
+
+if ! sudo -A ls >/dev/null 2>/dev/null; then
+	echo "Unable to verify that sudo works"
+	exit 1
+fi
+
+detect_distribution
+echo "$DISTRIBUTION" > dist
+echo "Detected distribution $DISTRIBUTION"
+
+case "$DISTRIBUTION" in
+	freebsd)
+		if uname -a 2>/dev/null | grep -q "FreeBSD 9" 2>/dev/null; then
+			sudo pkg_add -Fr bash &&
+			echo "freebsd9" > dist ||
+			exit 1
+		elif uname -a 2>/dev/null | grep -q "FreeBSD 10" 2>/dev/null; then
+			sudo pkg install -y bash &&
+			echo "freebsd10" > dist ||
+			exit 1
+		else
+			echo "Unknown FreeBSD: `uname -a`"
+			exit 1
+		fi
+		;;
+esac
+
+echo "DONE"
+exit 0

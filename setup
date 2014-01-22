@@ -1,0 +1,280 @@
+#!/usr/bin/env bash
+
+DISTRIBUTION=`cat dist 2>/dev/null`
+
+if [ -z "$DISTRIBUTION" ]; then
+	echo "No distribution?"
+	exit 1
+fi
+
+REBOOT=0
+NTP_CONF=/etc/ntp.conf
+SSHD_CONF=/etc/ssh/sshd_config
+			
+case "$DISTRIBUTION" in
+	ubuntu)
+		export LC_ALL="en_US.UTF-8"
+		export LANGUAGE="en_US.UTF-8"
+		rm -f apt.log
+		sudo apt-get -y update &&
+		sudo apt-get -y dist-upgrade >>apt.log &&
+		sudo apt-get -y install build-essential \
+			open-vm-tools \
+			default-jre \
+			libxml2-dev \
+			libsqlite3-dev \
+			sqlite3 \
+			libbotan1.8-dev \
+			libssl-dev \
+			autoconf \
+			automake \
+			libtool \
+			ccache \
+			libcunit1-dev \
+			doxygen \
+			graphviz \
+			gdb \
+			valgrind \
+			ntp \
+			protobuf-compiler \
+			libprotobuf-dev \
+			libcppunit-dev \
+			mysql-server \
+			libmysqlclient-dev \
+			git-svn \
+			subversion >>apt.log ||
+		exit 1
+		cat apt.log
+		packages=`grep '[0-9]* upgraded, [0-9]* newly installed, [0-9]* to remove and [0-9]* not upgraded.' apt.log | awk '{ a=a+$1+$3 } END { print a }'`
+		if [ -n "$packages" -a "$packages" != "0" ]; then
+			REBOOT=1
+		fi
+		;;
+		
+	redhat|centos)
+		rpm -q epel-release >/dev/null 2>/dev/null ||
+		sudo yum -y install http://mirrors.se.eu.kernel.org/fedora-epel/6/x86_64/epel-release-6-8.noarch.rpm ||
+		exit 1
+
+		rm -f yum.log
+		sudo yum -y remove fprintd &&
+		sudo yum -y update >>yum.log &&
+		sudo yum -y groupinstall "Development Tools" >>yum.log &&
+		sudo yum -y install open-vm-tools \
+			libxml2-devel \
+			sqlite-devel \
+			openssl-devel \
+			botan-devel \
+			ccache \
+			CUnit-devel \
+			graphviz \
+			protobuf-devel \
+			mysql-server \
+			mysql-devel \
+			ntp >>yum.log &&
+		sudo chkconfig ntpd on ||
+		exit 1
+		cat yum.log
+		packages=`grep '^\(Install\|Upgrade\) *[0-9]* Package' yum.log | awk '{ a=a+$2 } END { print a }'`
+		if [ -n "$packages" -a "$packages" != "0" ]; then
+			REBOOT=1
+		fi
+		;;
+	
+	suse)
+		;;
+
+	freebsd9)
+		export BRANCH="9-stable"
+		sudo pkg_add -Fr bsdadminscripts &&
+		sudo -E pkg_upgrade -a &&
+		sudo pkg_add -Fr open-vm-tools-nox11 \
+			openjdk6 \
+			libxml2 \
+			sqlite3 \
+			openssl \
+			botan \
+			ccache \
+			wget \
+			sha \
+			coreutils \
+			cunit \
+			doxygen \
+			ntp \
+			gdb \
+			valgrind \
+			protobuf \
+			cppunit ||
+		exit 1
+		;;
+
+	freebsd10)
+		;;
+	
+	solaris)
+		;;
+esac
+
+#
+# MySQL
+#
+
+mysql -u root -e 'DROP DATABASE test'
+mysql -u root -e 'DELETE FROM mysql.db WHERE Db="test" OR Db="test\\_%"'
+mysql -u root -e 'DELETE FROM mysql.user WHERE User=""' &&
+mysql -u root -e 'DELETE FROM mysql.user WHERE User="root" AND Host NOT IN ("localhost", "127.0.0.1", "::1")' &&
+mysql -u root -e 'FLUSH PRIVILEGES' ||
+exit 1
+if ! mysql -u root -B -e 'show databases' | grep -q '^test$'; then
+	mysqladmin -u root create test &&
+	mysql -u root -e 'grant all on test.* to test@localhost identified by "test"' ||
+	exit 1
+fi
+if ! mysql -u root -B -e 'show databases' | grep -q '^build$'; then
+	mysqladmin -u root create build &&
+	mysql -u root -e 'grant all on test.* to build@localhost identified by "build"' ||
+	exit 1
+fi
+
+#
+# ntpd
+#
+
+if ! grep -q '^tinker panic 0$' $NTP_CONF; then
+	echo "tinker panic 0" | sudo tee -a $NTP_CONF >/dev/null
+	REBOOT=1
+fi
+if ! grep -q '^restrict 127.0.0.1$' $NTP_CONF; then
+	echo "restrict 127.0.0.1" | sudo tee -a $NTP_CONF >/dev/null
+	REBOOT=1
+fi
+if ! grep -q '^restrict default kod nomodify notrap$' $NTP_CONF; then
+	echo "restrict default kod nomodify notrap" | sudo tee -a $NTP_CONF >/dev/null
+	REBOOT=1
+fi
+
+#
+# jenkins user
+#
+
+if ! grep -q '^jenkins:' /etc/passwd; then
+	case "$DISTRIBUTION" in
+		ubuntu|redhat|centos|suse|solaris)
+			sudo useradd -m jenkins ||
+			exit 1
+			;;
+		*)
+			exit 1
+			;;
+	esac
+fi
+
+sudo su - -c 'mkdir -p .ssh && chmod 700 .ssh && cd .ssh && echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDTmMYjX/ZUbjWH4nQjKQlCjr8VIOd2uIQyOaAudwZNLnF2sIiioq9CIf9fB4Pa3JX7B6+XRbWQO9BD8Z/WR/fwupkTO9uSB6KtpSvM+PGxhdLgyqMAH4WdySBOxvFLYizUFKs3l+i1IGBz2qQIBeiYFvHxgocFmTlOUdY1uoqM9oatRo82EDm+vHaHs//kJgfGctN+MKcdKJsvA5iRySjtg6ncC5ywv2kSKq+LtTkm4uXV6CeKi7BXYSfNer8jjcAqTSNVf8Ob2OiqmbLhijW2YdDqJXAV2ZBPSZ0c7IwqovyiVBJ+GkAmavsd8I6KTKW79T4ThU+O2XSktCVDpd8t jenkins@freebsd-vm1.sinodun.com" > authorized_keys && chmod 640 authorized_keys' jenkins ||
+exit 1
+
+case "$DISTRIBUTION" in
+	solaris)
+		sudo su - -c 'echo "export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin" > .bashrc && chmod +x .bashrc' jenkins ||
+		exit 1
+		;;
+esac
+
+#
+# readonly user
+#
+
+if ! grep -q '^readonly:' /etc/passwd; then
+	case "$DISTRIBUTION" in
+		ubuntu|redhat|centos|suse|solaris)
+			sudo useradd -m readonly ||
+			exit 1
+			;;
+		*)
+			exit 1
+			;;
+	esac
+fi
+
+# TODO: install user keys
+#sudo su - -c 'mkdir -p .ssh && chmod 700 .ssh && cd .ssh && echo "" > authorized_keys && chmod 640 authorized_keys' jenkins ||
+#exit 1
+
+case "$DISTRIBUTION" in
+	solaris)
+		sudo su - -c 'echo "export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin" > .bashrc && chmod +x .bashrc' readonly ||
+		exit 1
+		;;
+esac
+
+#
+# syslog
+#
+case "$DISTRIBUTION" in
+	ubuntu)
+		if ! grep -B 1 -A 1 '^\*\.\*;auth,authpriv.none[ 	]*-/var/log/syslog$' /etc/rsyslog.d/50-default.conf | grep -q '^$FileCreateMode'; then
+			sudo sed -i 's%^\(\*\.\*;auth,authpriv.none[ 	]*-/var/log/syslog\)$%$FileCreateMode 0644\n\1\n$FileCreateMode 0640%' /etc/rsyslog.d/50-default.conf &&
+			sudo chmod o+r /var/log/syslog ||
+			exit 1
+			REBOOT=1
+		fi
+		if [ ! -f /etc/rsyslog.d/00-opendnssec.conf ]; then
+			echo -e '$IMUXSockRateLimitInterval 0\n$SystemLogRateLimitInterval 0' | sudo tee -a /etc/rsyslog.d/00-opendnssec.conf >/dev/null ||
+			exit 1
+		fi
+		;;
+esac
+
+#
+# sshd
+#
+
+if grep '^PermitRootLogin' $SSHD_CONF | grep -q 'yes'; then
+	sudo sed -i 's%^\(PermitRootLogin\)%#\1%g' $SSHD_CONF ||
+	exit 1
+	REBOOT=1
+fi
+if ! grep -q '^PermitRootLogin no' $SSHD_CONF; then
+	sudo echo "PermitRootLogin no" | sudo tee -a $SSHD_CONF >/dev/null ||
+	exit 1
+	REBOOT=1
+fi
+if grep '^PasswordAuthentication' $SSHD_CONF | grep -q 'yes'; then
+	sudo sed -i 's%^\(PasswordAuthentication\)%#\1%g' $SSHD_CONF ||
+	exit 1
+	REBOOT=1
+fi
+if ! grep -q '^PasswordAuthentication no' $SSHD_CONF; then
+	echo "PasswordAuthentication no" | sudo tee -a $SSHD_CONF >/dev/null ||
+	exit 1
+	REBOOT=1
+fi
+
+#
+# firewall
+#
+
+case "$DISTRIBUTION" in
+	ubuntu)
+		sudo ufw allow from any to any port 22 &&
+		echo y | sudo ufw enable ||
+		exit 1
+		;;
+esac
+
+
+#
+# Reboot if needed
+#
+
+if [ "$REBOOT" = "1" ]; then
+	case "$DISTRIBUTION" in
+		ubuntu|redhat|centos)
+			nohup sudo shutdown -r +1 >/dev/null 2>/dev/null </dev/null &
+			;;
+	esac
+	echo "DONE REBOOT"
+	exit 0
+fi
+
+echo "DONE"
+exit 0
