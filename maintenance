@@ -23,6 +23,17 @@ case "$DISTRIBUTION" in
 		sudo apt-get clean ||
 		exit 1
 		;;
+
+	redhat|centos)
+		uname=`uname -r | sed 's%\.x86_64%%'`
+		remove=`rpm -qa | grep '^kernel' | grep -v "$uname"`
+		if [ -n "$remove" ]; then
+			sudo yum -y remove $remove ||
+			exit 1
+		fi
+		sudo yum -y clean all ||
+		exit 1
+		;;
 esac
 
 echo "DONE"

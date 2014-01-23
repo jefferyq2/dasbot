@@ -72,7 +72,8 @@ case "$DISTRIBUTION" in
 			mysql-server \
 			mysql-devel \
 			ntp >>yum.log &&
-		sudo chkconfig ntpd on ||
+		sudo chkconfig ntpd on &&
+		sudo chkconfig mysqld on ||
 		exit 1
 		cat yum.log
 		packages=`grep '^\(Install\|Upgrade\) *[0-9]* Package' yum.log | awk '{ a=a+$2 } END { print a }'`
@@ -80,7 +81,7 @@ case "$DISTRIBUTION" in
 			REBOOT=1
 		fi
 		;;
-	
+		
 	suse)
 		;;
 
@@ -118,6 +119,15 @@ esac
 #
 # MySQL
 #
+
+case "$DISTRIBUTION" in
+	redhat|centos)
+		if ! sudo service mysqld status >/dev/null 2>/dev/null; then
+			sudo service mysqld start ||
+			exit 1
+		fi
+		;;
+esac
 
 mysql -u root -e 'DROP DATABASE test'
 mysql -u root -e 'DELETE FROM mysql.db WHERE Db="test" OR Db="test\\_%"'
@@ -163,6 +173,7 @@ if ! grep -q '^jenkins:' /etc/passwd; then
 			sudo useradd -m jenkins ||
 			exit 1
 			;;
+
 		*)
 			exit 1
 			;;
@@ -211,8 +222,8 @@ esac
 #
 case "$DISTRIBUTION" in
 	ubuntu)
-		if ! grep -B 1 -A 1 '^\*\.\*;auth,authpriv.none[ 	]*-/var/log/syslog$' /etc/rsyslog.d/50-default.conf | grep -q '^$FileCreateMode'; then
-			sudo sed -i 's%^\(\*\.\*;auth,authpriv.none[ 	]*-/var/log/syslog\)$%$FileCreateMode 0644\n\1\n$FileCreateMode 0640%' /etc/rsyslog.d/50-default.conf &&
+		if ! grep -B 1 -A 1 '^\*\.\*;auth,authpriv\.none[ 	]*-/var/log/syslog$' /etc/rsyslog.d/50-default.conf | grep -q '^$FileCreateMode'; then
+			sudo sed -i 's%^\(\*\.\*;auth,authpriv\.none[ 	]*-/var/log/syslog\)$%$FileCreateMode 0644\n\1\n$FileCreateMode 0640%' /etc/rsyslog.d/50-default.conf &&
 			sudo chmod o+r /var/log/syslog ||
 			exit 1
 			REBOOT=1
@@ -220,6 +231,21 @@ case "$DISTRIBUTION" in
 		if [ ! -f /etc/rsyslog.d/00-opendnssec.conf ]; then
 			echo -e '$IMUXSockRateLimitInterval 0\n$SystemLogRateLimitInterval 0' | sudo tee -a /etc/rsyslog.d/00-opendnssec.conf >/dev/null ||
 			exit 1
+			REBOOT=1
+		fi
+		;;
+
+	redhat|centos)
+		if ! grep -B 1 -A 1 '^\*\.\(info\|\*\);mail\.none;authpriv\.none;cron\.none[ 	]*/var/log/messages$' /etc/rsyslog.conf | grep -q '^$FileCreateMode'; then
+			sudo sed -i 's%^\*\.\(info\|\*\)\(;mail\.none;authpriv\.none;cron\.none[ 	]*/var/log/messages\)$%$FileCreateMode 0644\n*.*\1\n$FileCreateMode 0640%' /etc/rsyslog.conf &&
+			sudo chmod a+r /var/log/messages ||
+			exit 1
+			REBOOT=1
+		fi
+		if [ ! -f /etc/rsyslog.d/00-opendnssec.conf ]; then
+			echo -e '$IMUXSockRateLimitInterval 0\n$SystemLogRateLimitInterval 0' | sudo tee -a /etc/rsyslog.d/00-opendnssec.conf >/dev/null ||
+			exit 1
+			REBOOT=1
 		fi
 		;;
 esac
@@ -228,22 +254,22 @@ esac
 # sshd
 #
 
-if grep '^PermitRootLogin' $SSHD_CONF | grep -q 'yes'; then
+if sudo grep '^PermitRootLogin' $SSHD_CONF | grep -q 'yes'; then
 	sudo sed -i 's%^\(PermitRootLogin\)%#\1%g' $SSHD_CONF ||
 	exit 1
 	REBOOT=1
 fi
-if ! grep -q '^PermitRootLogin no' $SSHD_CONF; then
+if ! sudo grep -q '^PermitRootLogin no' $SSHD_CONF; then
 	sudo echo "PermitRootLogin no" | sudo tee -a $SSHD_CONF >/dev/null ||
 	exit 1
 	REBOOT=1
 fi
-if grep '^PasswordAuthentication' $SSHD_CONF | grep -q 'yes'; then
+if sudo grep '^PasswordAuthentication' $SSHD_CONF | grep -q 'yes'; then
 	sudo sed -i 's%^\(PasswordAuthentication\)%#\1%g' $SSHD_CONF ||
 	exit 1
 	REBOOT=1
 fi
-if ! grep -q '^PasswordAuthentication no' $SSHD_CONF; then
+if ! sudo grep -q '^PasswordAuthentication no' $SSHD_CONF; then
 	echo "PasswordAuthentication no" | sudo tee -a $SSHD_CONF >/dev/null ||
 	exit 1
 	REBOOT=1
