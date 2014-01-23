@@ -41,7 +41,7 @@ detect_distribution ()
 	export DISTRIBUTION
 }
 
-if ! sudo -A ls >/dev/null 2>/dev/null; then
+if ! sudo -nA ls >/dev/null 2>/dev/null; then
 	echo "Unable to verify that sudo works"
 	exit 1
 fi

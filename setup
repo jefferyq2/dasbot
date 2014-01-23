@@ -1,5 +1,25 @@
 #!/usr/bin/env bash
 
+freebsd_rc_conf_enable_yes() {
+	local what="$1"
+	
+	if [ -z "$what" ]; then
+		echo "usage: freebsd_rc_conf_enable <what>"
+		exit 1
+	fi
+	
+	if ! grep -q '^'"$what"'_enable="YES"' /etc/rc.conf; then
+		if grep -q '^'"$what"'_enable=' /etc/rc.conf; then
+			sudo -nA sed -i '' -e 's%^'"$what"'_enable=.*%'"$what"'_enable="YES"%' /etc/rc.conf ||
+			exit 1
+		else
+			echo "$what"'_enable="YES"' | sudo -nA tee -a /etc/rc.conf >/dev/null ||
+			exit 1
+		fi
+		REBOOT=1
+	fi
+}
+
 DISTRIBUTION=`cat dist 2>/dev/null`
 
 if [ -z "$DISTRIBUTION" ]; then
@@ -16,9 +36,9 @@ case "$DISTRIBUTION" in
 		export LC_ALL="en_US.UTF-8"
 		export LANGUAGE="en_US.UTF-8"
 		rm -f apt.log
-		sudo apt-get -y update &&
-		sudo apt-get -y dist-upgrade >>apt.log &&
-		sudo apt-get -y install build-essential \
+		sudo -nA apt-get -y update &&
+		sudo -nA apt-get -y dist-upgrade >>apt.log &&
+		sudo -nA apt-get -y install build-essential \
 			open-vm-tools \
 			default-jre \
 			libxml2-dev \
@@ -53,14 +73,14 @@ case "$DISTRIBUTION" in
 		
 	redhat|centos)
 		rpm -q epel-release >/dev/null 2>/dev/null ||
-		sudo yum -y install http://mirrors.se.eu.kernel.org/fedora-epel/6/x86_64/epel-release-6-8.noarch.rpm ||
+		sudo -nA yum -y install http://mirrors.se.eu.kernel.org/fedora-epel/6/x86_64/epel-release-6-8.noarch.rpm ||
 		exit 1
 
 		rm -f yum.log
-		sudo yum -y remove fprintd &&
-		sudo yum -y update >>yum.log &&
-		sudo yum -y groupinstall "Development Tools" >>yum.log &&
-		sudo yum -y install open-vm-tools \
+		sudo -nA yum -y remove fprintd &&
+		sudo -nA yum -y update >>yum.log &&
+		sudo -nA yum -y groupinstall "Development Tools" >>yum.log &&
+		sudo -nA yum -y install open-vm-tools \
 			libxml2-devel \
 			sqlite-devel \
 			openssl-devel \
@@ -72,8 +92,8 @@ case "$DISTRIBUTION" in
 			mysql-server \
 			mysql-devel \
 			ntp >>yum.log &&
-		sudo chkconfig ntpd on &&
-		sudo chkconfig mysqld on ||
+		sudo -nA chkconfig ntpd on &&
+		sudo -nA chkconfig mysqld on ||
 		exit 1
 		cat yum.log
 		packages=`grep '^\(Install\|Upgrade\) *[0-9]* Package' yum.log | awk '{ a=a+$2 } END { print a }'`
@@ -86,11 +106,41 @@ case "$DISTRIBUTION" in
 		;;
 
 	freebsd9)
+		if [ ! -f /var/cron/tabs/root ]; then
+			echo '0 3 * * * /usr/sbin/freebsd-update cron' | sudo -nA tee -a /var/cron/tabs/root >/dev/null &&
+			sudo -nA chmod 600 /var/cron/tabs/root ||
+			exit 1
+		else
+			if ! grep -q '^0 3 * * * /usr/sbin/freebsd-update cron' /var/cron/tabs/root; then
+				echo '0 3 * * * /usr/sbin/freebsd-update cron' | sudo -nA tee -a /var/cron/tabs/root >/dev/null &&
+				sudo -nA chmod 600 /var/cron/tabs/root ||
+				exit 1
+			fi
+		fi
+
+		rm -f update.log
+		if sudo -nA freebsd-update install >update.log; then
+			REBOOT=1
+		else
+			if ! grep -q '^No updates are available to install.$' update.log; then
+				cat update.log
+				exit 1
+			fi
+		fi
+		cat update.log
+		
+		rm -f upgrade.log
 		export BRANCH="9-stable"
-		sudo pkg_add -Fr bsdadminscripts &&
-		sudo -E pkg_upgrade -a &&
-		sudo pkg_add -Fr open-vm-tools-nox11 \
-			openjdk6 \
+		sudo -nA pkg_add -Fr bsdadminscripts &&
+		sudo -nA -E pkg_upgrade -avX >upgrade.log ||
+		exit 1
+		cat upgrade.log
+		if grep -q '^Install [0-9]* package' upgrade.log; then
+			REBOOT=1
+		fi
+
+		for pkg in open-vm-tools-nox11 \
+			"openjdk6:openjdk6-[a-z0-9]*" \
 			libxml2 \
 			sqlite3 \
 			openssl \
@@ -105,8 +155,49 @@ case "$DISTRIBUTION" in
 			gdb \
 			valgrind \
 			protobuf \
-			cppunit ||
-		exit 1
+			cppunit \
+			mysql55-server:mysql-server- \
+			mysql55-client:mysql-client-;
+		do
+			chk="$pkg-"
+			if echo "$pkg" | grep -q ':'; then
+				chk=`echo "$pkg" | sed 's%:% %' | awk '{ print $2 }'`
+				pkg=`echo "$pkg" | sed 's%:% %' | awk '{ print $1 }'`
+			fi
+			echo "Checking pkg $pkg (match $chk)"
+			pkgs=`pkg_info | grep "^$chk[0-9]" | wc -l | awk '{ print $1 }'`
+			if [ "$pkgs" = "1" ]; then
+				echo "Skip $pkg, installed"
+				continue
+			fi
+			
+			rm -f install.log
+			if ! sudo -nA pkg_add -Fr "$pkg" 2>install.log; then
+				cat install.log
+				exit 1
+			fi
+			cat install.log
+			if ! grep -q '^pkg_add: package .* or its older version already installed' install.log; then
+				REBOOT=1
+			fi
+		done
+		
+		freebsd_rc_conf_enable_yes mysql
+		freebsd_rc_conf_enable_yes ntpd
+		freebsd_rc_conf_enable_yes vmware_guest_vmblock
+		freebsd_rc_conf_enable_yes vmware_guest_vmhgfs
+		freebsd_rc_conf_enable_yes vmware_guest_vmmemctl
+		freebsd_rc_conf_enable_yes vmware_guest_vmxnet
+		freebsd_rc_conf_enable_yes vmware_guestd
+
+		if ! grep -q '^fdesc /dev/fd fdescfs rw 0 0$' /etc/fstab; then
+			echo 'fdesc /dev/fd fdescfs rw 0 0' | sudo -nA tee -a /etc/fstab >/dev/null ||
+			exit 1
+		fi
+		if ! grep -q '^proc /proc procfs rw 0 0$' /etc/fstab; then
+			echo 'proc /proc procfs rw 0 0' | sudo -nA tee -a /etc/fstab >/dev/null ||
+			exit 1
+		fi
 		;;
 
 	freebsd10)
@@ -122,8 +213,15 @@ esac
 
 case "$DISTRIBUTION" in
 	redhat|centos)
-		if ! sudo service mysqld status >/dev/null 2>/dev/null; then
-			sudo service mysqld start ||
+		if ! sudo -nA service mysqld status >/dev/null 2>/dev/null; then
+			sudo -nA service mysqld start ||
+			exit 1
+		fi
+		;;
+
+	freebsd9)
+		if ! sudo -nA /usr/local/etc/rc.d/mysql-server status >/dev/null 2>/dev/null; then
+			sudo -nA /usr/local/etc/rc.d/mysql-server start ||
 			exit 1
 		fi
 		;;
@@ -151,15 +249,15 @@ fi
 #
 
 if ! grep -q '^tinker panic 0$' $NTP_CONF; then
-	echo "tinker panic 0" | sudo tee -a $NTP_CONF >/dev/null
+	echo "tinker panic 0" | sudo -nA tee -a $NTP_CONF >/dev/null
 	REBOOT=1
 fi
 if ! grep -q '^restrict 127.0.0.1$' $NTP_CONF; then
-	echo "restrict 127.0.0.1" | sudo tee -a $NTP_CONF >/dev/null
+	echo "restrict 127.0.0.1" | sudo -nA tee -a $NTP_CONF >/dev/null
 	REBOOT=1
 fi
 if ! grep -q '^restrict default kod nomodify notrap$' $NTP_CONF; then
-	echo "restrict default kod nomodify notrap" | sudo tee -a $NTP_CONF >/dev/null
+	echo "restrict default kod nomodify notrap" | sudo -nA tee -a $NTP_CONF >/dev/null
 	REBOOT=1
 fi
 
@@ -170,7 +268,12 @@ fi
 if ! grep -q '^jenkins:' /etc/passwd; then
 	case "$DISTRIBUTION" in
 		ubuntu|redhat|centos|suse|solaris)
-			sudo useradd -m jenkins ||
+			sudo -nA useradd -m jenkins ||
+			exit 1
+			;;
+
+		freebsd9)
+			echo 'jenkins::::::::/bin/sh:' | sudo -nA adduser -w no -f - ||
 			exit 1
 			;;
 
@@ -180,12 +283,32 @@ if ! grep -q '^jenkins:' /etc/passwd; then
 	esac
 fi
 
-sudo su - -c 'mkdir -p .ssh && chmod 700 .ssh && cd .ssh && echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDTmMYjX/ZUbjWH4nQjKQlCjr8VIOd2uIQyOaAudwZNLnF2sIiioq9CIf9fB4Pa3JX7B6+XRbWQO9BD8Z/WR/fwupkTO9uSB6KtpSvM+PGxhdLgyqMAH4WdySBOxvFLYizUFKs3l+i1IGBz2qQIBeiYFvHxgocFmTlOUdY1uoqM9oatRo82EDm+vHaHs//kJgfGctN+MKcdKJsvA5iRySjtg6ncC5ywv2kSKq+LtTkm4uXV6CeKi7BXYSfNer8jjcAqTSNVf8Ob2OiqmbLhijW2YdDqJXAV2ZBPSZ0c7IwqovyiVBJ+GkAmavsd8I6KTKW79T4ThU+O2XSktCVDpd8t jenkins@freebsd-vm1.sinodun.com" > authorized_keys && chmod 640 authorized_keys' jenkins ||
-exit 1
+case "$DISTRIBUTION" in
+	ubuntu|redhat|centos|suse)
+		sudo -nA su - -c 'mkdir -p .ssh && chmod 700 .ssh && cd .ssh && echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDTmMYjX/ZUbjWH4nQjKQlCjr8VIOd2uIQyOaAudwZNLnF2sIiioq9CIf9fB4Pa3JX7B6+XRbWQO9BD8Z/WR/fwupkTO9uSB6KtpSvM+PGxhdLgyqMAH4WdySBOxvFLYizUFKs3l+i1IGBz2qQIBeiYFvHxgocFmTlOUdY1uoqM9oatRo82EDm+vHaHs//kJgfGctN+MKcdKJsvA5iRySjtg6ncC5ywv2kSKq+LtTkm4uXV6CeKi7BXYSfNer8jjcAqTSNVf8Ob2OiqmbLhijW2YdDqJXAV2ZBPSZ0c7IwqovyiVBJ+GkAmavsd8I6KTKW79T4ThU+O2XSktCVDpd8t jenkins@freebsd-vm1.sinodun.com" > .ssh/authorized_keys && chmod 640 .ssh/authorized_keys' jenkins ||
+		exit 1
+		;;
+
+	freebsd9)
+		(
+			cd ~jenkins &&
+			sudo -nA mkdir -p .ssh &&
+			sudo -nA chown jenkins:jenkins .ssh &&
+			sudo -nA chmod 700 .ssh &&
+			echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDTmMYjX/ZUbjWH4nQjKQlCjr8VIOd2uIQyOaAudwZNLnF2sIiioq9CIf9fB4Pa3JX7B6+XRbWQO9BD8Z/WR/fwupkTO9uSB6KtpSvM+PGxhdLgyqMAH4WdySBOxvFLYizUFKs3l+i1IGBz2qQIBeiYFvHxgocFmTlOUdY1uoqM9oatRo82EDm+vHaHs//kJgfGctN+MKcdKJsvA5iRySjtg6ncC5ywv2kSKq+LtTkm4uXV6CeKi7BXYSfNer8jjcAqTSNVf8Ob2OiqmbLhijW2YdDqJXAV2ZBPSZ0c7IwqovyiVBJ+GkAmavsd8I6KTKW79T4ThU+O2XSktCVDpd8t jenkins@freebsd-vm1.sinodun.com" | sudo -nA tee .ssh/authorized_keys >/dev/null &&
+			sudo -nA chmod 640 .ssh/authorized_keys
+		) ||
+		exit 1
+		;;
+
+	*)
+		exit 1
+		;;
+esac
 
 case "$DISTRIBUTION" in
 	solaris)
-		sudo su - -c 'echo "export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin" > .bashrc && chmod +x .bashrc' jenkins ||
+		sudo -nA su - -c 'echo "export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin" > .bashrc && chmod +x .bashrc' jenkins ||
 		exit 1
 		;;
 esac
@@ -197,9 +320,15 @@ esac
 if ! grep -q '^readonly:' /etc/passwd; then
 	case "$DISTRIBUTION" in
 		ubuntu|redhat|centos|suse|solaris)
-			sudo useradd -m readonly ||
+			sudo -nA useradd -m readonly ||
 			exit 1
 			;;
+
+		freebsd9)
+			echo 'readonly::::::::/bin/sh:' | sudo -nA adduser -w no -f - ||
+			exit 1
+			;;
+
 		*)
 			exit 1
 			;;
@@ -207,12 +336,10 @@ if ! grep -q '^readonly:' /etc/passwd; then
 fi
 
 # TODO: install user keys
-#sudo su - -c 'mkdir -p .ssh && chmod 700 .ssh && cd .ssh && echo "" > authorized_keys && chmod 640 authorized_keys' jenkins ||
-#exit 1
 
 case "$DISTRIBUTION" in
 	solaris)
-		sudo su - -c 'echo "export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin" > .bashrc && chmod +x .bashrc' readonly ||
+		sudo -nA su - -c 'echo "export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin" > .bashrc && chmod +x .bashrc' readonly ||
 		exit 1
 		;;
 esac
@@ -223,13 +350,13 @@ esac
 case "$DISTRIBUTION" in
 	ubuntu)
 		if ! grep -B 1 -A 1 '^\*\.\*;auth,authpriv\.none[ 	]*-/var/log/syslog$' /etc/rsyslog.d/50-default.conf | grep -q '^$FileCreateMode'; then
-			sudo sed -i 's%^\(\*\.\*;auth,authpriv\.none[ 	]*-/var/log/syslog\)$%$FileCreateMode 0644\n\1\n$FileCreateMode 0640%' /etc/rsyslog.d/50-default.conf &&
-			sudo chmod o+r /var/log/syslog ||
+			sudo -nA sed -i 's%^\(\*\.\*;auth,authpriv\.none[ 	]*-/var/log/syslog\)$%$FileCreateMode 0644\n\1\n$FileCreateMode 0640%' /etc/rsyslog.d/50-default.conf &&
+			sudo -nA chmod o+r /var/log/syslog ||
 			exit 1
 			REBOOT=1
 		fi
 		if [ ! -f /etc/rsyslog.d/00-opendnssec.conf ]; then
-			echo -e '$IMUXSockRateLimitInterval 0\n$SystemLogRateLimitInterval 0' | sudo tee -a /etc/rsyslog.d/00-opendnssec.conf >/dev/null ||
+			echo -e '$IMUXSockRateLimitInterval 0\n$SystemLogRateLimitInterval 0' | sudo -nA tee -a /etc/rsyslog.d/00-opendnssec.conf >/dev/null ||
 			exit 1
 			REBOOT=1
 		fi
@@ -237,13 +364,21 @@ case "$DISTRIBUTION" in
 
 	redhat|centos)
 		if ! grep -B 1 -A 1 '^\*\.\(info\|\*\);mail\.none;authpriv\.none;cron\.none[ 	]*/var/log/messages$' /etc/rsyslog.conf | grep -q '^$FileCreateMode'; then
-			sudo sed -i 's%^\*\.\(info\|\*\)\(;mail\.none;authpriv\.none;cron\.none[ 	]*/var/log/messages\)$%$FileCreateMode 0644\n*.*\1\n$FileCreateMode 0640%' /etc/rsyslog.conf &&
-			sudo chmod a+r /var/log/messages ||
+			sudo -nA sed -i 's%^\*\.\(info\|\*\)\(;mail\.none;authpriv\.none;cron\.none[ 	]*/var/log/messages\)$%$FileCreateMode 0644\n*.*\1\n$FileCreateMode 0640%' /etc/rsyslog.conf &&
+			sudo -nA chmod a+r /var/log/messages ||
 			exit 1
 			REBOOT=1
 		fi
 		if [ ! -f /etc/rsyslog.d/00-opendnssec.conf ]; then
-			echo -e '$IMUXSockRateLimitInterval 0\n$SystemLogRateLimitInterval 0' | sudo tee -a /etc/rsyslog.d/00-opendnssec.conf >/dev/null ||
+			echo -e '$IMUXSockRateLimitInterval 0\n$SystemLogRateLimitInterval 0' | sudo -nA tee -a /etc/rsyslog.d/00-opendnssec.conf >/dev/null ||
+			exit 1
+			REBOOT=1
+		fi
+		;;
+
+	freebsd9)
+		if grep -q '^\*\.notice;authpriv\.none;kern\.debug;lpr\.info;mail\.crit;news\.err[ 	]/var/log/messages$' /etc/syslog.conf; then
+			sudo -nA sed -i '' -e 's%^\*\.notice;authpriv\.none;kern\.debug;lpr\.info;mail\.crit;news\.err[ 	]/var/log/messages$%daemon.*;local0.*;local1.*;authpriv.none;lpr.info;mail.crit;news.err	/var/log/messages%' /etc/syslog.conf ||
 			exit 1
 			REBOOT=1
 		fi
@@ -254,23 +389,23 @@ esac
 # sshd
 #
 
-if sudo grep '^PermitRootLogin' $SSHD_CONF | grep -q 'yes'; then
-	sudo sed -i 's%^\(PermitRootLogin\)%#\1%g' $SSHD_CONF ||
+if sudo -nA grep '^PermitRootLogin' $SSHD_CONF | grep -q 'yes'; then
+	sudo -nA sed -i 's%^\(PermitRootLogin\)%#\1%g' $SSHD_CONF ||
 	exit 1
 	REBOOT=1
 fi
-if ! sudo grep -q '^PermitRootLogin no' $SSHD_CONF; then
-	sudo echo "PermitRootLogin no" | sudo tee -a $SSHD_CONF >/dev/null ||
+if ! sudo -nA grep -q '^PermitRootLogin no' $SSHD_CONF; then
+	sudo -nA echo "PermitRootLogin no" | sudo -nA tee -a $SSHD_CONF >/dev/null ||
 	exit 1
 	REBOOT=1
 fi
-if sudo grep '^PasswordAuthentication' $SSHD_CONF | grep -q 'yes'; then
-	sudo sed -i 's%^\(PasswordAuthentication\)%#\1%g' $SSHD_CONF ||
+if sudo -nA grep '^PasswordAuthentication' $SSHD_CONF | grep -q 'yes'; then
+	sudo -nA sed -i 's%^\(PasswordAuthentication\)%#\1%g' $SSHD_CONF ||
 	exit 1
 	REBOOT=1
 fi
-if ! sudo grep -q '^PasswordAuthentication no' $SSHD_CONF; then
-	echo "PasswordAuthentication no" | sudo tee -a $SSHD_CONF >/dev/null ||
+if ! sudo -nA grep -q '^PasswordAuthentication no' $SSHD_CONF; then
+	echo "PasswordAuthentication no" | sudo -nA tee -a $SSHD_CONF >/dev/null ||
 	exit 1
 	REBOOT=1
 fi
@@ -281,9 +416,40 @@ fi
 
 case "$DISTRIBUTION" in
 	ubuntu)
-		sudo ufw allow from any to any port 22 &&
-		echo y | sudo ufw enable ||
+		sudo -nA ufw allow from any to any port 22 &&
+		echo y | sudo -nA ufw enable ||
 		exit 1
+		;;
+
+	freebsd9)
+		sha=""
+		if [ -f /etc/ipf.rules ]; then
+			sha=`sha1 -q /etc/ipf.rules`
+			if [ -z "$sha" ]; then
+				exit 1
+			fi
+		fi
+		if [ "$sha" != "85295a43ae1e80ca31807e8a6ce6d06cdfdb26d2" ]; then
+			sudo -nA rm -f /etc/ipf.rules &&
+			echo 'pass in from any to port = 22' | sudo -nA tee -a /etc/ipf.rules >/dev/null ||
+			exit 1
+			sha=`sha1 -q /etc/ipf.rules`
+			if [ -z "$sha" ]; then
+				exit 1
+			fi
+			if [ "$sha" != "85295a43ae1e80ca31807e8a6ce6d06cdfdb26d2" ]; then
+				echo "ipf.rules sha missmatch"
+				exit 1
+			fi
+			REBOOT=1
+		fi
+		
+		freebsd_rc_conf_enable_yes ipfilter
+		if ! grep -q '^ipfilter_rules="/etc/ipf.rules"' /etc/rc.conf; then
+			echo 'ipfilter_rules="/etc/ipf.rules"' | sudo -nA tee -a /etc/rc.conf >/dev/null ||
+			exit 1
+			REBOOT=1
+		fi
 		;;
 esac
 
@@ -294,8 +460,8 @@ esac
 
 if [ "$REBOOT" = "1" ]; then
 	case "$DISTRIBUTION" in
-		ubuntu|redhat|centos)
-			nohup sudo shutdown -r +1 >/dev/null 2>/dev/null </dev/null &
+		ubuntu|redhat|centos|suse|freebsd9)
+			nohup sudo -nA shutdown -r +1 >/dev/null 2>/dev/null </dev/null &
 			;;
 	esac
 	echo "DONE REBOOT"
