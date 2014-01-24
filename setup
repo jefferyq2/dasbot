@@ -103,6 +103,30 @@ case "$DISTRIBUTION" in
 		;;
 		
 	suse)
+		echo "SUSE is broken"
+		exit 1
+		
+		rm -f zypper.log
+		sudo zypper ar -f -n opensuse http://download.opensuse.org/distribution/11.4/repo/oss/suse/ opensuse &&
+		sudo zypper ar -f -n packman http://packman.inode.at/suse/11.4 packman &&
+		sudo zypper -n --gpg-auto-import-keys ref &&
+		sudo zypper -n update -l -r SLES11-SP3-Pool -r SLES11-SP3-Updates >>zypper.log &&
+		sudo zypper -n install -l -r SLES11-SP3-Pool -r SLES11-SP3-Updates -t pattern Basis-Devel >>zypper.log &&
+		
+		sudo zypper -n install -l java-1_6_0-ibm \
+			cunit-devel \
+			doxygen \
+			graphviz \
+			libcppunit-devel \
+			valgrind \
+			protobuf-devel \
+			libxml2-devel \
+			sqlite3-devel \
+			ccache >>zypper.log ||
+		exit 1
+		cat zypper.log
+		#224 packages to upgrade, 86 new, 52 to remove, 14 to change arch.
+		#44 new packages to install.
 		;;
 
 	freebsd9)
@@ -201,6 +225,96 @@ case "$DISTRIBUTION" in
 		;;
 
 	freebsd10)
+		if [ ! -f /var/cron/tabs/root ]; then
+			echo '0 3 * * * /usr/sbin/freebsd-update cron' | sudo -nA tee -a /var/cron/tabs/root >/dev/null &&
+			sudo -nA chmod 600 /var/cron/tabs/root ||
+			exit 1
+		else
+			if ! grep -q '^0 3 * * * /usr/sbin/freebsd-update cron' /var/cron/tabs/root; then
+				echo '0 3 * * * /usr/sbin/freebsd-update cron' | sudo -nA tee -a /var/cron/tabs/root >/dev/null &&
+				sudo -nA chmod 600 /var/cron/tabs/root ||
+				exit 1
+			fi
+		fi
+
+		rm -f update.log
+		if sudo -nA freebsd-update install >update.log; then
+			REBOOT=1
+		else
+			if ! grep -q '^No updates are available to install.$' update.log; then
+				cat update.log
+				exit 1
+			fi
+		fi
+		cat update.log
+		
+		rm -f upgrade.log
+		sudo pkg update &&
+		sudo pkg upgrade >upgrade.log ||
+		exit 1
+		cat upgrade.log
+		if ! grep -q '^Nothing to do$' upgrade.log; then
+			REBOOT=1
+		fi
+
+		for pkg in open-vm-tools-nox11 \
+			"openjdk6:openjdk6-[a-z0-9]*" \
+			libxml2 \
+			sqlite3 \
+			openssl \
+			botan \
+			ccache \
+			wget \
+			coreutils \
+			cunit \
+			doxygen \
+			ntp \
+			gdb \
+			valgrind \
+			protobuf \
+			cppunit \
+			mysql55-server \
+			mysql55-client;
+		do
+			chk="$pkg-"
+			if echo "$pkg" | grep -q ':'; then
+				chk=`echo "$pkg" | sed 's%:% %' | awk '{ print $2 }'`
+				pkg=`echo "$pkg" | sed 's%:% %' | awk '{ print $1 }'`
+			fi
+			echo "Checking pkg $pkg (match $chk)"
+			pkgs=`pkg info | grep "^$chk[0-9]" | wc -l | awk '{ print $1 }'`
+			if [ "$pkgs" = "1" ]; then
+				echo "Skip $pkg, installed"
+				continue
+			fi
+			
+			rm -f install.log
+			if ! sudo -nA pkg install -y "$pkg" 2>install.log; then
+				cat install.log
+				exit 1
+			fi
+			cat install.log
+			if ! grep -q "^$pkg.* already installed$" install.log; then
+				REBOOT=1
+			fi
+		done
+		
+		freebsd_rc_conf_enable_yes mysql
+		freebsd_rc_conf_enable_yes ntpd
+		freebsd_rc_conf_enable_yes vmware_guest_vmblock
+		freebsd_rc_conf_enable_yes vmware_guest_vmhgfs
+		freebsd_rc_conf_enable_yes vmware_guest_vmmemctl
+		freebsd_rc_conf_enable_yes vmware_guest_vmxnet
+		freebsd_rc_conf_enable_yes vmware_guestd
+
+		if ! grep -q '^fdesc /dev/fd fdescfs rw 0 0$' /etc/fstab; then
+			echo 'fdesc /dev/fd fdescfs rw 0 0' | sudo -nA tee -a /etc/fstab >/dev/null ||
+			exit 1
+		fi
+		if ! grep -q '^proc /proc procfs rw 0 0$' /etc/fstab; then
+			echo 'proc /proc procfs rw 0 0' | sudo -nA tee -a /etc/fstab >/dev/null ||
+			exit 1
+		fi
 		;;
 	
 	solaris)
@@ -219,7 +333,7 @@ case "$DISTRIBUTION" in
 		fi
 		;;
 
-	freebsd9)
+	freebsd*)
 		if ! sudo -nA /usr/local/etc/rc.d/mysql-server status >/dev/null 2>/dev/null; then
 			sudo -nA /usr/local/etc/rc.d/mysql-server start ||
 			exit 1
@@ -272,7 +386,7 @@ if ! grep -q '^jenkins:' /etc/passwd; then
 			exit 1
 			;;
 
-		freebsd9)
+		freebsd*)
 			echo 'jenkins::::::::/bin/sh:' | sudo -nA adduser -w no -f - ||
 			exit 1
 			;;
@@ -289,7 +403,7 @@ case "$DISTRIBUTION" in
 		exit 1
 		;;
 
-	freebsd9)
+	freebsd*)
 		(
 			cd ~jenkins &&
 			sudo -nA mkdir -p .ssh &&
@@ -324,7 +438,7 @@ if ! grep -q '^readonly:' /etc/passwd; then
 			exit 1
 			;;
 
-		freebsd9)
+		freebsd*)
 			echo 'readonly::::::::/bin/sh:' | sudo -nA adduser -w no -f - ||
 			exit 1
 			;;
@@ -376,7 +490,7 @@ case "$DISTRIBUTION" in
 		fi
 		;;
 
-	freebsd9)
+	freebsd*)
 		if grep -q '^\*\.notice;authpriv\.none;kern\.debug;lpr\.info;mail\.crit;news\.err[ 	]/var/log/messages$' /etc/syslog.conf; then
 			sudo -nA sed -i '' -e 's%^\*\.notice;authpriv\.none;kern\.debug;lpr\.info;mail\.crit;news\.err[ 	]/var/log/messages$%daemon.*;local0.*;local1.*;authpriv.none;lpr.info;mail.crit;news.err	/var/log/messages%' /etc/syslog.conf ||
 			exit 1
@@ -421,7 +535,7 @@ case "$DISTRIBUTION" in
 		exit 1
 		;;
 
-	freebsd9)
+	freebsd*)
 		sha=""
 		if [ -f /etc/ipf.rules ]; then
 			sha=`sha1 -q /etc/ipf.rules`
@@ -429,15 +543,15 @@ case "$DISTRIBUTION" in
 				exit 1
 			fi
 		fi
-		if [ "$sha" != "85295a43ae1e80ca31807e8a6ce6d06cdfdb26d2" ]; then
+		if [ "$sha" != "c2f7f78f3ee6ebd7bd5a04e7888922d63156d1fd" ]; then
 			sudo -nA rm -f /etc/ipf.rules &&
-			echo 'pass in from any to port = 22' | sudo -nA tee -a /etc/ipf.rules >/dev/null ||
+			echo -e "block in all\npass in from any to port = 22 keep state\npass in on lo keep state\npass out all keep state" | sudo -nA tee /etc/ipf.rules >/dev/null ||
 			exit 1
 			sha=`sha1 -q /etc/ipf.rules`
 			if [ -z "$sha" ]; then
 				exit 1
 			fi
-			if [ "$sha" != "85295a43ae1e80ca31807e8a6ce6d06cdfdb26d2" ]; then
+			if [ "$sha" != "c2f7f78f3ee6ebd7bd5a04e7888922d63156d1fd" ]; then
 				echo "ipf.rules sha missmatch"
 				exit 1
 			fi
@@ -460,7 +574,7 @@ esac
 
 if [ "$REBOOT" = "1" ]; then
 	case "$DISTRIBUTION" in
-		ubuntu|redhat|centos|suse|freebsd9)
+		ubuntu|redhat|centos|suse|freebsd*)
 			nohup sudo -nA shutdown -r +1 >/dev/null 2>/dev/null </dev/null &
 			;;
 	esac
