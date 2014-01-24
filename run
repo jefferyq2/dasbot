@@ -9,7 +9,7 @@ if [ -z "$*" ]; then
 	usage
 fi
 
-if [ ! -f bootstrap -o ! -f setup -o ! -f maintenance ]; then
+if [ ! -f bootstrap -o ! -f setup -o ! -f maintenance -o ! -f build ]; then
 	echo "Missing files, in the right directory?"
 	exit 1
 fi
@@ -29,11 +29,12 @@ for host in "$@"; do
 			bootstrap \
 			setup \
 			maintenance \
+			build \
 			"dasbot@$host": >/dev/null ||
 		exit 1
 		echo "done"
 		
-		for what in bootstrap setup maintenance; do
+		for what in bootstrap setup maintenance build; do
 			echo "Running $what ... waiting"
 			echo "Running $what at `date`" >> "logs/$host.log"
 			rm -rf -- "logs/$host.last.$what"
