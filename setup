@@ -317,8 +317,64 @@ case "$DISTRIBUTION" in
 		fi
 		;;
 	
-	solaris)
+	sunos)
+		sudo -nA pkg refresh ||
+		exit 1
+		
+		rm -f update.log
+		sudo -nA pkg update >update.log
+		status="$?"
+		cat update.log
+		
+		if [ "$status" = "0" ]; then
+			REBOOT=1
+		else
+			if ! grep -q '^No updates available for this image.$' update.log; then
+				exit 1
+			fi
+		fi
+		
+		rm -f install.log
+		sudo -nA pkg install gcc-3 \
+			gnu-make \
+			libtool \
+			autoconf \
+			automake-110 \
+			libxml2 \
+			stdcxx \
+			developer/base-developer-utilities \
+			group/feature/developer-gnu \
+			ucb \
+			c++-runtime \
+			doxygen \
+			graphviz \
+			mysql-51 \
+			mysql-51/library >install.log
+		status="$?"
+		cat install.log
+		
+		if [ "$status" = "0" ]; then
+			REBOOT=1
+		else
+			if ! grep -q '^No updates necessary for this image.$' install.log; then
+				exit 1
+			fi
+		fi
+		
+		NTP_CONF=/etc/inet/ntp.conf
+		if [ ! -f $NTP_CONF ]; then
+			sudo -nA cp /etc/inet/ntp.client $NTP_CONF ||
+			exit 1
+		fi
+		if ! svcs ntp | grep -q '^online'; then
+			sudo -nA svcadm enable ntp ||
+			exit 1
+		fi
 		;;
+
+	*)
+		echo "Unknown dist"
+		exit 1
 esac
 
 #
@@ -336,6 +392,13 @@ case "$DISTRIBUTION" in
 	freebsd*)
 		if ! sudo -nA /usr/local/etc/rc.d/mysql-server status >/dev/null 2>/dev/null; then
 			sudo -nA /usr/local/etc/rc.d/mysql-server start ||
+			exit 1
+		fi
+		;;
+
+	sunos)
+		if ! svcs mysql | grep -q '^online'; then
+			sudo -nA svcadm enable mysql ||
 			exit 1
 		fi
 		;;
@@ -374,6 +437,26 @@ if ! grep -q '^restrict default kod nomodify notrap$' $NTP_CONF; then
 	echo "restrict default kod nomodify notrap" | sudo -nA tee -a $NTP_CONF >/dev/null
 	REBOOT=1
 fi
+case "$DISTRIBUTION" in
+	sunos)
+		if ! grep -q '^server 0.nl.pool.ntp.org$' $NTP_CONF; then
+			echo "server 0.nl.pool.ntp.org" | sudo -nA tee -a $NTP_CONF >/dev/null
+			REBOOT=1
+		fi
+		if ! grep -q '^server 1.nl.pool.ntp.org$' $NTP_CONF; then
+			echo "server 1.nl.pool.ntp.org" | sudo -nA tee -a $NTP_CONF >/dev/null
+			REBOOT=1
+		fi
+		if ! grep -q '^server 2.nl.pool.ntp.org$' $NTP_CONF; then
+			echo "server 2.nl.pool.ntp.org" | sudo -nA tee -a $NTP_CONF >/dev/null
+			REBOOT=1
+		fi
+		if ! grep -q '^server 3.nl.pool.ntp.org$' $NTP_CONF; then
+			echo "server 3.nl.pool.ntp.org" | sudo -nA tee -a $NTP_CONF >/dev/null
+			REBOOT=1
+		fi
+		;;
+esac
 
 #
 # jenkins user
@@ -381,7 +464,7 @@ fi
 
 if ! grep -q '^jenkins:' /etc/passwd; then
 	case "$DISTRIBUTION" in
-		ubuntu|redhat|centos|suse|solaris)
+		ubuntu|redhat|centos|suse|sunos)
 			sudo -nA useradd -m jenkins ||
 			exit 1
 			;;
@@ -399,7 +482,12 @@ fi
 
 case "$DISTRIBUTION" in
 	ubuntu|redhat|centos|suse)
-		sudo -nA su - -c 'mkdir -p .ssh && chmod 700 .ssh && cd .ssh && echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDTmMYjX/ZUbjWH4nQjKQlCjr8VIOd2uIQyOaAudwZNLnF2sIiioq9CIf9fB4Pa3JX7B6+XRbWQO9BD8Z/WR/fwupkTO9uSB6KtpSvM+PGxhdLgyqMAH4WdySBOxvFLYizUFKs3l+i1IGBz2qQIBeiYFvHxgocFmTlOUdY1uoqM9oatRo82EDm+vHaHs//kJgfGctN+MKcdKJsvA5iRySjtg6ncC5ywv2kSKq+LtTkm4uXV6CeKi7BXYSfNer8jjcAqTSNVf8Ob2OiqmbLhijW2YdDqJXAV2ZBPSZ0c7IwqovyiVBJ+GkAmavsd8I6KTKW79T4ThU+O2XSktCVDpd8t jenkins@freebsd-vm1.sinodun.com" > .ssh/authorized_keys && chmod 640 .ssh/authorized_keys' jenkins ||
+		sudo -nA su - -c 'mkdir -p .ssh && chmod 700 .ssh && echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDTmMYjX/ZUbjWH4nQjKQlCjr8VIOd2uIQyOaAudwZNLnF2sIiioq9CIf9fB4Pa3JX7B6+XRbWQO9BD8Z/WR/fwupkTO9uSB6KtpSvM+PGxhdLgyqMAH4WdySBOxvFLYizUFKs3l+i1IGBz2qQIBeiYFvHxgocFmTlOUdY1uoqM9oatRo82EDm+vHaHs//kJgfGctN+MKcdKJsvA5iRySjtg6ncC5ywv2kSKq+LtTkm4uXV6CeKi7BXYSfNer8jjcAqTSNVf8Ob2OiqmbLhijW2YdDqJXAV2ZBPSZ0c7IwqovyiVBJ+GkAmavsd8I6KTKW79T4ThU+O2XSktCVDpd8t jenkins@freebsd-vm1.sinodun.com" > .ssh/authorized_keys && chmod 640 .ssh/authorized_keys' jenkins ||
+		exit 1
+		;;
+
+	sunos)
+		sudo -nA su - jenkins -c 'mkdir -p .ssh && chmod 700 .ssh && echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDTmMYjX/ZUbjWH4nQjKQlCjr8VIOd2uIQyOaAudwZNLnF2sIiioq9CIf9fB4Pa3JX7B6+XRbWQO9BD8Z/WR/fwupkTO9uSB6KtpSvM+PGxhdLgyqMAH4WdySBOxvFLYizUFKs3l+i1IGBz2qQIBeiYFvHxgocFmTlOUdY1uoqM9oatRo82EDm+vHaHs//kJgfGctN+MKcdKJsvA5iRySjtg6ncC5ywv2kSKq+LtTkm4uXV6CeKi7BXYSfNer8jjcAqTSNVf8Ob2OiqmbLhijW2YdDqJXAV2ZBPSZ0c7IwqovyiVBJ+GkAmavsd8I6KTKW79T4ThU+O2XSktCVDpd8t jenkins@freebsd-vm1.sinodun.com" > .ssh/authorized_keys && chmod 640 .ssh/authorized_keys' ||
 		exit 1
 		;;
 
@@ -421,8 +509,8 @@ case "$DISTRIBUTION" in
 esac
 
 case "$DISTRIBUTION" in
-	solaris)
-		sudo -nA su - -c 'echo "export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin" > .bashrc && chmod +x .bashrc' jenkins ||
+	sunos)
+		sudo -nA su - jenkins -c 'rm -f .bashrc && echo "export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:/usr/mysql/bin" > .bashrc' ||
 		exit 1
 		;;
 esac
@@ -433,7 +521,7 @@ esac
 
 if ! grep -q '^readonly:' /etc/passwd; then
 	case "$DISTRIBUTION" in
-		ubuntu|redhat|centos|suse|solaris)
+		ubuntu|redhat|centos|suse|sunos)
 			sudo -nA useradd -m readonly ||
 			exit 1
 			;;
@@ -452,8 +540,8 @@ fi
 # TODO: install user keys
 
 case "$DISTRIBUTION" in
-	solaris)
-		sudo -nA su - -c 'echo "export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin" > .bashrc && chmod +x .bashrc' readonly ||
+	sunos)
+		sudo -nA su - readonly -c 'rm -f .bashrc && echo "export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:/usr/mysql/bin" > .bashrc' ||
 		exit 1
 		;;
 esac
@@ -493,6 +581,14 @@ case "$DISTRIBUTION" in
 	freebsd*)
 		if grep -q '^\*\.notice;authpriv\.none;kern\.debug;lpr\.info;mail\.crit;news\.err[ 	]/var/log/messages$' /etc/syslog.conf; then
 			sudo -nA sed -i '' -e 's%^\*\.notice;authpriv\.none;kern\.debug;lpr\.info;mail\.crit;news\.err[ 	]/var/log/messages$%daemon.*;local0.*;local1.*;authpriv.none;lpr.info;mail.crit;news.err	/var/log/messages%' /etc/syslog.conf ||
+			exit 1
+			REBOOT=1
+		fi
+		;;
+
+	sunos)
+		if grep -q '^\*\.err;kern\.debug;daemon\.notice;mail\.crit[	]*/var/adm/messages$' /etc/syslog.conf; then
+			sudo -nA gsed -i -e 's%\*\.err;kern\.debug;daemon\.notice;mail\.crit[	]*/var/adm/messages%*.debug			/var/adm/messages%' /etc/syslog.conf ||
 			exit 1
 			REBOOT=1
 		fi
@@ -565,6 +661,10 @@ case "$DISTRIBUTION" in
 			REBOOT=1
 		fi
 		;;
+
+	sunos)
+		# TODO: fix solaris firewall
+		;;
 esac
 
 
@@ -576,6 +676,10 @@ if [ "$REBOOT" = "1" ]; then
 	case "$DISTRIBUTION" in
 		ubuntu|redhat|centos|suse|freebsd*)
 			nohup sudo -nA shutdown -r +1 >/dev/null 2>/dev/null </dev/null &
+			;;
+
+		sunos)
+			# nohup sudo -nA shutdown -y -r -g 60 "reboot" >/dev/null 2>/dev/null </dev/null &
 			;;
 	esac
 	echo "DONE REBOOT"

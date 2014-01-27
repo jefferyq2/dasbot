@@ -65,6 +65,12 @@ case "$DISTRIBUTION" in
 			exit 1
 		fi
 		;;
+
+	sunos)
+		rm -f .bashrc
+		echo "export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:/usr/mysql/bin" > .bashrc ||
+		exit 1
+		;;
 esac
 
 echo "DONE"
