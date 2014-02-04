@@ -20,6 +20,22 @@ freebsd_rc_conf_enable_yes() {
 	fi
 }
 
+mysed() {
+	case "$DISTRIBUTION" in
+		freebsd*)
+			sudo -nA sed -i '' -e "$@"
+			;;
+
+		sunos)
+			sudo -nA gsed -i -e "$@"
+			;;
+
+		*)
+			sudo -nA sed -i "$@"
+			;;
+	esac
+}
+
 DISTRIBUTION=`cat dist 2>/dev/null`
 
 if [ -z "$DISTRIBUTION" ]; then
@@ -442,33 +458,46 @@ fi
 #
 
 if ! grep -q '^tinker panic 0$' $NTP_CONF; then
-	echo "tinker panic 0" | sudo -nA tee -a $NTP_CONF >/dev/null
+	echo "tinker panic 0" | sudo -nA tee -a $NTP_CONF >/dev/null ||
+	exit 1
 	REBOOT=1
 fi
 if ! grep -q '^restrict 127.0.0.1$' $NTP_CONF; then
-	echo "restrict 127.0.0.1" | sudo -nA tee -a $NTP_CONF >/dev/null
+	echo "restrict 127.0.0.1" | sudo -nA tee -a $NTP_CONF >/dev/null ||
+	exit 1
 	REBOOT=1
 fi
-if ! grep -q '^restrict default kod nomodify notrap$' $NTP_CONF; then
-	echo "restrict default kod nomodify notrap" | sudo -nA tee -a $NTP_CONF >/dev/null
+if ! grep -q '^restrict default' $NTP_CONF; then
+	echo "restrict default kod nomodify notrap noquery" | sudo -nA tee -a $NTP_CONF >/dev/null ||
+	exit 1
 	REBOOT=1
+else
+	if ! grep -q '^restrict default kod nomodify notrap noquery$' $NTP_CONF; then
+		mysed 's%^restrict default.*%restrict default kod nomodify notrap noquery%' $NTP_CONF ||
+		exit 1
+		REBOOT=1
+	fi
 fi
 case "$DISTRIBUTION" in
 	sunos)
 		if ! grep -q '^server 0.nl.pool.ntp.org$' $NTP_CONF; then
-			echo "server 0.nl.pool.ntp.org" | sudo -nA tee -a $NTP_CONF >/dev/null
+			echo "server 0.nl.pool.ntp.org" | sudo -nA tee -a $NTP_CONF >/dev/null ||
+			exit 1
 			REBOOT=1
 		fi
 		if ! grep -q '^server 1.nl.pool.ntp.org$' $NTP_CONF; then
-			echo "server 1.nl.pool.ntp.org" | sudo -nA tee -a $NTP_CONF >/dev/null
+			echo "server 1.nl.pool.ntp.org" | sudo -nA tee -a $NTP_CONF >/dev/null ||
+			exit 1
 			REBOOT=1
 		fi
 		if ! grep -q '^server 2.nl.pool.ntp.org$' $NTP_CONF; then
-			echo "server 2.nl.pool.ntp.org" | sudo -nA tee -a $NTP_CONF >/dev/null
+			echo "server 2.nl.pool.ntp.org" | sudo -nA tee -a $NTP_CONF >/dev/null ||
+			exit 1
 			REBOOT=1
 		fi
 		if ! grep -q '^server 3.nl.pool.ntp.org$' $NTP_CONF; then
-			echo "server 3.nl.pool.ntp.org" | sudo -nA tee -a $NTP_CONF >/dev/null
+			echo "server 3.nl.pool.ntp.org" | sudo -nA tee -a $NTP_CONF >/dev/null ||
+			exit 1
 			REBOOT=1
 		fi
 		;;
