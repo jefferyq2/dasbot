@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/use/bin/env bash
 
 freebsd_rc_conf_enable_yes() {
 	local what="$1"
