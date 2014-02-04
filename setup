@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash -x
 
 freebsd_rc_conf_enable_yes() {
 	local what="$1"
@@ -582,7 +582,7 @@ case "$DISTRIBUTION" in
 
 	redhat|centos)
 		if ! grep -B 1 -A 1 '^\*\.\(info\|\*\);mail\.none;authpriv\.none;cron\.none[ 	]*/var/log/messages$' /etc/rsyslog.conf | grep -q '^$FileCreateMode'; then
-			sudo -nA sed -i 's%^\*\.\(info\|\*\)\(;mail\.none;authpriv\.none;cron\.none[ 	]*/var/log/messages\)$%$FileCreateMode 0644\n*.*\1\n$FileCreateMode 0640%' /etc/rsyslog.conf &&
+			sudo -nA sed -i 's%^\*\.\(info\|\*\)\(;mail\.none;authpriv\.none;cron\.none[ 	]*/var/log/messages\)$%$FileCreateMode 0644\n*.*\2\n$FileCreateMode 0640%' /etc/rsyslog.conf &&
 			sudo -nA chmod a+r /var/log/messages ||
 			exit 1
 			REBOOT=1
