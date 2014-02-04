@@ -181,7 +181,9 @@ case "$DISTRIBUTION" in
 			protobuf \
 			cppunit \
 			mysql55-server:mysql-server- \
-			mysql55-client:mysql-client-;
+			mysql55-client:mysql-client- \
+			git \
+			subversion;
 		do
 			chk="$pkg-"
 			if echo "$pkg" | grep -q ':'; then
@@ -274,7 +276,9 @@ case "$DISTRIBUTION" in
 			protobuf \
 			cppunit \
 			mysql55-server \
-			mysql55-client;
+			mysql55-client \
+			git \
+			subversion;
 		do
 			chk="$pkg-"
 			if echo "$pkg" | grep -q ':'; then
