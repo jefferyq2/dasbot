@@ -91,7 +91,8 @@ case "$DISTRIBUTION" in
 			protobuf-devel \
 			mysql-server \
 			mysql-devel \
-			ntp >>yum.log &&
+			ntp \
+			wget >>yum.log &&
 		sudo -nA chkconfig ntpd on &&
 		sudo -nA chkconfig mysqld on ||
 		exit 1
