@@ -400,6 +400,17 @@ case "$DISTRIBUTION" in
 		if ! svcs mysql | grep -q '^online'; then
 			sudo -nA svcadm enable mysql ||
 			exit 1
+			I=0
+			while true; do
+				mysql -u root -e 'SELECT 0' 2>/dev/null >/dev/null &&
+				break
+				if [ $I -gt 30 ]; then
+					echo "unable to start mysql"
+					exit 1
+				fi
+				I=$(( I + 1 ))
+				sleep 2
+			done
 		fi
 		;;
 esac
