@@ -599,21 +599,61 @@ esac
 # sshd
 #
 
-if sudo -nA grep '^PermitRootLogin' $SSHD_CONF | grep -q 'yes'; then
-	sudo -nA sed -i 's%^\(PermitRootLogin\)%#\1%g' $SSHD_CONF ||
-	exit 1
-	REBOOT=1
-fi
+case "$DISTRIBUTION" in
+	freebsd*)
+		if sudo -nA grep '^PermitRootLogin' $SSHD_CONF | grep -q 'yes'; then
+			sudo -nA sed -i '' -e 's%^\(PermitRootLogin\)%#\1%g' $SSHD_CONF ||
+			exit 1
+			REBOOT=1
+		fi
+		;;
+
+	sunos)
+		if sudo -nA grep '^PermitRootLogin' $SSHD_CONF | grep -q 'yes'; then
+			sudo -nA gsed -i -e 's%^\(PermitRootLogin\)%#\1%g' $SSHD_CONF ||
+			exit 1
+			REBOOT=1
+		fi
+		;;
+
+	*)
+		if sudo -nA grep '^PermitRootLogin' $SSHD_CONF | grep -q 'yes'; then
+			sudo -nA sed -i 's%^\(PermitRootLogin\)%#\1%g' $SSHD_CONF ||
+			exit 1
+			REBOOT=1
+		fi
+		;;
+esac
 if ! sudo -nA grep -q '^PermitRootLogin no' $SSHD_CONF; then
 	sudo -nA echo "PermitRootLogin no" | sudo -nA tee -a $SSHD_CONF >/dev/null ||
 	exit 1
 	REBOOT=1
 fi
-if sudo -nA grep '^PasswordAuthentication' $SSHD_CONF | grep -q 'yes'; then
-	sudo -nA sed -i 's%^\(PasswordAuthentication\)%#\1%g' $SSHD_CONF ||
-	exit 1
-	REBOOT=1
-fi
+case "$DISTRIBUTION" in
+	freebsd*)
+		if sudo -nA grep '^PasswordAuthentication' $SSHD_CONF | grep -q 'yes'; then
+			sudo -nA sed -i '' - e 's%^\(PasswordAuthentication\)%#\1%g' $SSHD_CONF ||
+			exit 1
+			REBOOT=1
+		fi
+		;;
+
+	sunos)
+		if sudo -nA grep '^PasswordAuthentication' $SSHD_CONF | grep -q 'yes'; then
+			sudo -nA gsed -i -e 's%^\(PasswordAuthentication\)%#\1%g' $SSHD_CONF ||
+			exit 1
+			REBOOT=1
+		fi
+		;;
+
+	*)
+		if sudo -nA grep '^PasswordAuthentication' $SSHD_CONF | grep -q 'yes'; then
+			sudo -nA sed -i 's%^\(PasswordAuthentication\)%#\1%g' $SSHD_CONF ||
+			exit 1
+			REBOOT=1
+		fi
+		;;
+esac
 if ! sudo -nA grep -q '^PasswordAuthentication no' $SSHD_CONF; then
 	echo "PasswordAuthentication no" | sudo -nA tee -a $SSHD_CONF >/dev/null ||
 	exit 1
@@ -663,7 +703,27 @@ case "$DISTRIBUTION" in
 		;;
 
 	sunos)
-		# TODO: fix solaris firewall
+		sha=""
+		if [ -f /etc/ipf/ipf.conf ]; then
+			sha=`sha1sum /etc/ipf/ipf.conf | awk '{print $1}'`
+			if [ -z "$sha" ]; then
+				exit 1
+			fi
+		fi
+		if [ "$sha" != "c2f7f78f3ee6ebd7bd5a04e7888922d63156d1fd" ]; then
+			sudo -nA rm -f /etc/ipf/ipf.conf &&
+			echo -e "block in all\npass in from any to port = 22 keep state\npass in on lo keep state\npass out all keep state" | sudo -nA tee /etc/ipf/ipf.conf >/dev/null ||
+			exit 1
+			sha=`sha1sum /etc/ipf/ipf.conf | awk '{print $1}'`
+			if [ -z "$sha" ]; then
+				exit 1
+			fi
+			if [ "$sha" != "c2f7f78f3ee6ebd7bd5a04e7888922d63156d1fd" ]; then
+				echo "ipf.conf sha missmatch"
+				exit 1
+			fi
+			REBOOT=1
+		fi
 		;;
 esac
 
@@ -679,7 +739,7 @@ if [ "$REBOOT" = "1" ]; then
 			;;
 
 		sunos)
-			# nohup sudo -nA shutdown -y -r -g 60 "reboot" >/dev/null 2>/dev/null </dev/null &
+			nohup sudo -nA shutdown -y -r -g 60 "reboot" >/dev/null 2>/dev/null </dev/null &
 			;;
 	esac
 	echo "DONE REBOOT"
