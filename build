@@ -9,13 +9,13 @@ fi
 
 case "$DISTRIBUTION" in
 	redhat|centos)
-		if ! rpm -qa | grep '^cppunit-[0-9]'; then
+		if ! rpm -qa | grep -q '^cppunit-[0-9]'; then
 			rm -f cppunit-1.12.0-4.el5.1.x86_64.rpm
 			wget http://ftp.acc.umu.se/mirror/fedora/epel/5/x86_64/cppunit-1.12.0-4.el5.1.x86_64.rpm &&
 			sudo -nA rpm -i cppunit-1.12.0-4.el5.1.x86_64.rpm ||
 			exit 1
 		fi
-		if ! rpm -qa | grep '^cppunit-devel-[0-9]'; then
+		if ! rpm -qa | grep -q '^cppunit-devel-[0-9]'; then
 			rm -f cppunit-devel-1.12.0-4.el5.1.x86_64.rpm
 			wget http://ftp.acc.umu.se/mirror/fedora/epel/5/x86_64/cppunit-devel-1.12.0-4.el5.1.x86_64.rpm &&
 			sudo -nA rpm -i cppunit-devel-1.12.0-4.el5.1.x86_64.rpm ||
