@@ -11,13 +11,25 @@ case "$DISTRIBUTION" in
 	redhat|centos)
 		if ! rpm -qa | grep -q '^cppunit-[0-9]'; then
 			rm -f cppunit-1.12.0-4.el5.1.x86_64.rpm
-			wget http://ftp.acc.umu.se/mirror/fedora/epel/5/x86_64/cppunit-1.12.0-4.el5.1.x86_64.rpm &&
+			wget http://ftp.acc.umu.se/mirror/fedora/epel/5/x86_64/cppunit-1.12.0-4.el5.1.x86_64.rpm ||
+			exit 1
+			sha=`sha1sum cppunit-1.12.0-4.el5.1.x86_64.rpm | awk '{ print $1 }'`
+			if [ "$sha" != "befdcf3aae517fb28379655ad33989e4c66582c2" ]; then
+				echo "sha missmatch for cppunit-1.12.0-4.el5.1.x86_64.rpm"
+				exit 1
+			fi
 			sudo -nA rpm -i cppunit-1.12.0-4.el5.1.x86_64.rpm ||
 			exit 1
 		fi
 		if ! rpm -qa | grep -q '^cppunit-devel-[0-9]'; then
 			rm -f cppunit-devel-1.12.0-4.el5.1.x86_64.rpm
-			wget http://ftp.acc.umu.se/mirror/fedora/epel/5/x86_64/cppunit-devel-1.12.0-4.el5.1.x86_64.rpm &&
+			wget http://ftp.acc.umu.se/mirror/fedora/epel/5/x86_64/cppunit-devel-1.12.0-4.el5.1.x86_64.rpm ||
+			exit 1
+			sha=`sha1sum cppunit-devel-1.12.0-4.el5.1.x86_64.rpm | awk '{ print $1 }'`
+			if [ "$sha" != "1204807fed1c75de2f168b79ffd9dbbd756a0f21" ]; then
+				echo "sha missmatch for cppunit-devel-1.12.0-4.el5.1.x86_64.rpm"
+				exit 1
+			fi
 			sudo -nA rpm -i cppunit-devel-1.12.0-4.el5.1.x86_64.rpm ||
 			exit 1
 		fi
