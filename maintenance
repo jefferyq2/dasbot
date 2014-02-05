@@ -35,6 +35,11 @@ case "$DISTRIBUTION" in
 		sudo -nA yum -y clean expire-cache ||
 		exit 1
 		;;
+
+	suse)
+		sudo -nA zypper --non-interactive-include-reboot-patches -n clean ||
+		exit 1
+		;;
 esac
 
 echo "DONE"
