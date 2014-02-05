@@ -19,7 +19,7 @@ mkdir -p logs
 for host in "$@"; do
 	((
 		echo -n "Copying to host ... "
-		scp -i ~/.ssh/dasbot.opendnssec.org \
+		scp -r -i ~/.ssh/dasbot.opendnssec.org \
 			-oStrictHostKeyChecking=no \
 			-oPreferredAuthentications=publickey \
 			-oServerAliveInterval=10 \
@@ -30,6 +30,7 @@ for host in "$@"; do
 			setup \
 			maintenance \
 			build \
+			keys \
 			"dasbot@$host": >/dev/null ||
 		exit 1
 		echo "done"

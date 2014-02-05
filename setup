@@ -582,7 +582,44 @@ if ! grep -q '^readonly:' /etc/passwd; then
 	esac
 fi
 
-# TODO: install user keys
+case "$DISTRIBUTION" in
+	ubuntu|redhat|centos|suse)
+		sudo -nA su - -c 'mkdir -p .ssh && chmod 700 .ssh && rm -f .ssh/authorized_keys && touch .ssh/authorized_keys && chmod 640 .ssh/authorized_keys' readonly ||
+		exit 1
+		;;
+
+	sunos)
+		sudo -nA su - readonly -c 'mkdir -p .ssh && chmod 700 .ssh && rm -f .ssh/authorized_keys && touch .ssh/authorized_keys && chmod 640 .ssh/authorized_keys' ||
+		exit 1
+		;;
+
+	freebsd*)
+		(
+			cd ~readonly &&
+			sudo -nA mkdir -p .ssh &&
+			sudo -nA chown readonly:readonly .ssh &&
+			sudo -nA chmod 700 .ssh &&
+			sudo -nA rm -f .ssh/authorized_keys &&
+			sudo -nA touch .ssh/authorized_keys &&
+			sudo -nA chmod 640 .ssh/authorized_keys
+		) ||
+		exit 1
+		;;
+
+	*)
+		exit 1
+		;;
+esac
+
+for key in keys/*; do
+	if [ "$key" = "keys/*" ]; then
+		break
+	fi
+
+	echo "# $key" | sudo -nA tee -a ~readonly/.ssh/authorized_keys >/dev/null &&
+	cat -- "$key" | sudo -nA tee -a ~readonly/.ssh/authorized_keys >/dev/null ||
+	exit 1
+done
 
 case "$DISTRIBUTION" in
 	sunos)
