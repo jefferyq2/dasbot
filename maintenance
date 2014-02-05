@@ -31,7 +31,8 @@ case "$DISTRIBUTION" in
 			sudo yum -y remove $remove ||
 			exit 1
 		fi
-		sudo yum -y clean all ||
+		sudo yum -y clean packages &&
+		sudo yum -y clean expire-cache ||
 		exit 1
 		;;
 esac
