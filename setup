@@ -8,6 +8,7 @@ freebsd_rc_conf_enable_yes() {
 		exit 1
 	fi
 	
+	echo freebsd rc $what
 	if ! grep -q '^'"$what"'_enable="YES"' /etc/rc.conf; then
 		if grep -q '^'"$what"'_enable=' /etc/rc.conf; then
 			sudo -nA sed -i '' -e 's%^'"$what"'_enable=.*%'"$what"'_enable="YES"%' /etc/rc.conf ||
@@ -52,8 +53,11 @@ case "$DISTRIBUTION" in
 		export LC_ALL="en_US.UTF-8"
 		export LANGUAGE="en_US.UTF-8"
 		rm -f apt.log
+		echo apt-get update &&
 		sudo -nA apt-get -y update &&
+		echo apt-get dist-upgrade &&
 		sudo -nA apt-get -y dist-upgrade >>apt.log &&
+		echo apt-get install &&
 		sudo -nA apt-get -y install build-essential \
 			open-vm-tools \
 			default-jre \
@@ -79,7 +83,7 @@ case "$DISTRIBUTION" in
 			libmysqlclient-dev \
 			git-svn \
 			subversion >>apt.log ||
-		exit 1
+		{ cat apt.log; exit 1; }
 		cat apt.log
 		packages=`grep '[0-9]* upgraded, [0-9]* newly installed, [0-9]* to remove and [0-9]* not upgraded.' apt.log | awk '{ a=a+$1+$3 } END { print a }'`
 		if [ -n "$packages" -a "$packages" != "0" ]; then
@@ -88,14 +92,19 @@ case "$DISTRIBUTION" in
 		;;
 		
 	redhat|centos)
+		echo yum install epel
 		rpm -q epel-release >/dev/null 2>/dev/null ||
 		sudo -nA yum -y install http://mirrors.se.eu.kernel.org/fedora-epel/6/x86_64/epel-release-6-8.noarch.rpm ||
 		exit 1
 
 		rm -f yum.log
+		echo yum remove fprintd &&
 		sudo -nA yum -y remove fprintd &&
+		echo yum update &&
 		sudo -nA yum -y update >>yum.log &&
+		echo yum groupinstall &&
 		sudo -nA yum -y groupinstall "Development Tools" >>yum.log &&
+		echo yum install &&
 		sudo -nA yum -y install open-vm-tools \
 			libxml2-devel \
 			sqlite-devel \
@@ -109,9 +118,11 @@ case "$DISTRIBUTION" in
 			mysql-devel \
 			ntp \
 			wget >>yum.log &&
+		echo chkconfig ntp &&
 		sudo -nA chkconfig ntpd on &&
+		echo chkconfig mysql &&
 		sudo -nA chkconfig mysqld on ||
-		exit 1
+		{ cat yum.log; exit 1; }
 		cat yum.log
 		packages=`grep '^\(Install\|Upgrade\) *[0-9]* Package' yum.log | awk '{ a=a+$2 } END { print a }'`
 		if [ -n "$packages" -a "$packages" != "0" ]; then
@@ -122,8 +133,11 @@ case "$DISTRIBUTION" in
 	suse)
 		export PATH="$PATH:/sbin:/usr/sbin"
 		rm -f zypper.log
+		echo zypper update &&
 		sudo -nA zypper --non-interactive-include-reboot-patches -n update -l >>zypper.log &&
+		echo zypper install pattern &&
 		sudo -nA zypper --non-interactive-include-reboot-patches -n install -l -t pattern Basis-Devel >>zypper.log &&
+		echo zypper install &&
 		sudo -nA zypper --non-interactive-include-reboot-patches -n install -l java-1_6_0-ibm \
 			doxygen \
 			graphviz \
@@ -137,9 +151,11 @@ case "$DISTRIBUTION" in
 			mysql \
 			libmysqlclient-devel \
 			ntp >>zypper.log &&
+		echo chkconfig ntp &&
 		sudo -nA chkconfig ntp on &&
+		echo chkconfig mysql &&
 		sudo -nA chkconfig mysql on ||
-		exit 1
+		{ cat zypper.log; exit 1; }
 		cat zypper.log
 
 		packages=`grep '^[0-9][0-9]*.*package.*\(upgrade\|install\|remove\|change arch\)' zypper.log | \
@@ -156,6 +172,7 @@ case "$DISTRIBUTION" in
 		;;
 
 	freebsd9)
+		echo freebsd-update cron
 		if [ ! -f /var/cron/tabs/root ]; then
 			echo '0 3 * * * /usr/sbin/freebsd-update cron' | sudo -nA tee -a /var/cron/tabs/root >/dev/null &&
 			sudo -nA chmod 600 /var/cron/tabs/root ||
@@ -169,6 +186,7 @@ case "$DISTRIBUTION" in
 		fi
 
 		rm -f update.log
+		echo freebsd-update install
 		if sudo -nA freebsd-update install >update.log; then
 			REBOOT=1
 		else
@@ -181,9 +199,11 @@ case "$DISTRIBUTION" in
 		
 		rm -f upgrade.log
 		export BRANCH="9-stable"
+		echo bsdadminscripts &&
 		sudo -nA pkg_add -Fr bsdadminscripts &&
+		echo pkg_upgrade &&
 		sudo -nA -E pkg_upgrade -avX >upgrade.log ||
-		exit 1
+		{ cat upgrade.log; exit 1; }
 		cat upgrade.log
 		if grep -q '^Install [0-9]* package' upgrade.log; then
 			REBOOT=1
@@ -242,10 +262,12 @@ case "$DISTRIBUTION" in
 		freebsd_rc_conf_enable_yes vmware_guest_vmxnet
 		freebsd_rc_conf_enable_yes vmware_guestd
 
+		echo fstab fdescfs
 		if ! grep -q '^fdesc /dev/fd fdescfs rw 0 0$' /etc/fstab; then
 			echo 'fdesc /dev/fd fdescfs rw 0 0' | sudo -nA tee -a /etc/fstab >/dev/null ||
 			exit 1
 		fi
+		echo fstab procfs
 		if ! grep -q '^proc /proc procfs rw 0 0$' /etc/fstab; then
 			echo 'proc /proc procfs rw 0 0' | sudo -nA tee -a /etc/fstab >/dev/null ||
 			exit 1
@@ -253,6 +275,7 @@ case "$DISTRIBUTION" in
 		;;
 
 	freebsd10)
+		echo freebsd-update cron
 		if [ ! -f /var/cron/tabs/root ]; then
 			echo '0 3 * * * /usr/sbin/freebsd-update cron' | sudo -nA tee -a /var/cron/tabs/root >/dev/null &&
 			sudo -nA chmod 600 /var/cron/tabs/root ||
@@ -266,6 +289,7 @@ case "$DISTRIBUTION" in
 		fi
 
 		rm -f update.log
+		echo freebsd-update install
 		if sudo -nA freebsd-update install >update.log; then
 			REBOOT=1
 		else
@@ -277,9 +301,11 @@ case "$DISTRIBUTION" in
 		cat update.log
 		
 		rm -f upgrade.log
+		echo pkg update &&
 		sudo pkg update &&
+		echo pkg upgrade &&
 		sudo pkg upgrade >upgrade.log ||
-		exit 1
+		{ cat upgrade.log; exit 1; }
 		cat upgrade.log
 		if ! grep -q '^Nothing to do$' upgrade.log; then
 			REBOOT=1
@@ -337,10 +363,12 @@ case "$DISTRIBUTION" in
 		freebsd_rc_conf_enable_yes vmware_guest_vmxnet
 		freebsd_rc_conf_enable_yes vmware_guestd
 
+		echo fstab fdescfs
 		if ! grep -q '^fdesc /dev/fd fdescfs rw 0 0$' /etc/fstab; then
 			echo 'fdesc /dev/fd fdescfs rw 0 0' | sudo -nA tee -a /etc/fstab >/dev/null ||
 			exit 1
 		fi
+		echo fstab procfs
 		if ! grep -q '^proc /proc procfs rw 0 0$' /etc/fstab; then
 			echo 'proc /proc procfs rw 0 0' | sudo -nA tee -a /etc/fstab >/dev/null ||
 			exit 1
@@ -348,10 +376,12 @@ case "$DISTRIBUTION" in
 		;;
 	
 	sunos)
+		echo pkg refresh
 		sudo -nA pkg refresh ||
 		exit 1
 		
 		rm -f update.log
+		echo pkg update
 		sudo -nA pkg update >update.log
 		status="$?"
 		cat update.log
@@ -365,6 +395,7 @@ case "$DISTRIBUTION" in
 		fi
 		
 		rm -f install.log
+		echo pkg install
 		sudo -nA pkg install gcc-3 \
 			gnu-make \
 			libtool \
@@ -391,11 +422,13 @@ case "$DISTRIBUTION" in
 			fi
 		fi
 		
+		echo ntp.conf
 		NTP_CONF=/etc/inet/ntp.conf
 		if [ ! -f $NTP_CONF ]; then
 			sudo -nA cp /etc/inet/ntp.client $NTP_CONF ||
 			exit 1
 		fi
+		echo svcs ntp
 		if ! svcs ntp | grep -q '^online'; then
 			sudo -nA svcadm enable ntp ||
 			exit 1
@@ -411,6 +444,7 @@ esac
 # MySQL
 #
 
+echo mysql start
 case "$DISTRIBUTION" in
 	redhat|centos)
 		if ! sudo -nA service mysqld status >/dev/null 2>/dev/null; then
@@ -452,17 +486,20 @@ case "$DISTRIBUTION" in
 		;;
 esac
 
+echo mysql secure
 mysql -u root -e 'DROP DATABASE test'
 mysql -u root -e 'DELETE FROM mysql.db WHERE Db="test" OR Db="test\\_%"'
 mysql -u root -e 'DELETE FROM mysql.user WHERE User=""' &&
 mysql -u root -e 'DELETE FROM mysql.user WHERE User="root" AND Host NOT IN ("localhost", "127.0.0.1", "::1")' &&
 mysql -u root -e 'FLUSH PRIVILEGES' ||
 exit 1
+echo mysql db test
 if ! mysql -u root -B -e 'show databases' | grep -q '^test$'; then
 	mysqladmin -u root create test &&
 	mysql -u root -e 'grant all on test.* to test@localhost identified by "test"' ||
 	exit 1
 fi
+echo mysql db build
 if ! mysql -u root -B -e 'show databases' | grep -q '^build$'; then
 	mysqladmin -u root create build &&
 	mysql -u root -e 'grant all on test.* to build@localhost identified by "build"' ||
@@ -473,6 +510,7 @@ fi
 # ntpd
 #
 
+echo ntp
 if ! sudo -nA grep -q '^tinker panic 0$' $NTP_CONF; then
 	echo "tinker panic 0" | sudo -nA tee -a $NTP_CONF >/dev/null ||
 	exit 1
@@ -523,6 +561,7 @@ esac
 # jenkins user
 #
 
+echo user jenkins create
 if ! grep -q '^jenkins:' /etc/passwd; then
 	case "$DISTRIBUTION" in
 		ubuntu|redhat|centos|suse|sunos)
@@ -541,6 +580,7 @@ if ! grep -q '^jenkins:' /etc/passwd; then
 	esac
 fi
 
+echo user jenkins keys
 case "$DISTRIBUTION" in
 	ubuntu|redhat|centos|suse)
 		sudo -nA su - -c 'mkdir -p .ssh && chmod 700 .ssh && echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDTmMYjX/ZUbjWH4nQjKQlCjr8VIOd2uIQyOaAudwZNLnF2sIiioq9CIf9fB4Pa3JX7B6+XRbWQO9BD8Z/WR/fwupkTO9uSB6KtpSvM+PGxhdLgyqMAH4WdySBOxvFLYizUFKs3l+i1IGBz2qQIBeiYFvHxgocFmTlOUdY1uoqM9oatRo82EDm+vHaHs//kJgfGctN+MKcdKJsvA5iRySjtg6ncC5ywv2kSKq+LtTkm4uXV6CeKi7BXYSfNer8jjcAqTSNVf8Ob2OiqmbLhijW2YdDqJXAV2ZBPSZ0c7IwqovyiVBJ+GkAmavsd8I6KTKW79T4ThU+O2XSktCVDpd8t jenkins@freebsd-vm1.sinodun.com" > .ssh/authorized_keys && chmod 640 .ssh/authorized_keys' jenkins ||
@@ -571,6 +611,7 @@ esac
 
 case "$DISTRIBUTION" in
 	sunos)
+		echo user jenkins sunos
 		sudo -nA su - jenkins -c 'rm -f .bashrc && echo "export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:/usr/mysql/bin" > .bashrc' ||
 		exit 1
 		;;
@@ -580,6 +621,7 @@ esac
 # readonly user
 #
 
+echo user readonly create
 if ! grep -q '^readonly:' /etc/passwd; then
 	case "$DISTRIBUTION" in
 		ubuntu|redhat|centos|suse|sunos)
@@ -598,6 +640,7 @@ if ! grep -q '^readonly:' /etc/passwd; then
 	esac
 fi
 
+echo user readonly key setup
 case "$DISTRIBUTION" in
 	ubuntu|redhat|centos|suse)
 		sudo -nA su - -c 'mkdir -p .ssh && chmod 700 .ssh && rm -f .ssh/authorized_keys && touch .ssh/authorized_keys && chmod 640 .ssh/authorized_keys' readonly ||
@@ -627,6 +670,7 @@ case "$DISTRIBUTION" in
 		;;
 esac
 
+echo user readonly keys
 for key in keys/*; do
 	if [ "$key" = "keys/*" ]; then
 		break
@@ -639,6 +683,7 @@ done
 
 case "$DISTRIBUTION" in
 	sunos)
+		echo user readonly sunos
 		sudo -nA su - readonly -c 'rm -f .bashrc && echo "export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:/usr/mysql/bin" > .bashrc' ||
 		exit 1
 		;;
@@ -647,6 +692,7 @@ esac
 #
 # syslog
 #
+echo syslog
 case "$DISTRIBUTION" in
 	ubuntu)
 		if ! grep -B 1 -A 1 '^\*\.\*;auth,authpriv\.none[ 	]*-/var/log/syslog$' /etc/rsyslog.d/50-default.conf | grep -q '^$FileCreateMode'; then
@@ -712,6 +758,7 @@ esac
 # sshd
 #
 
+echo sshd
 case "$DISTRIBUTION" in
 	freebsd*)
 		if sudo -nA grep '^PermitRootLogin' $SSHD_CONF | grep -q 'yes'; then
@@ -777,6 +824,7 @@ fi
 # firewall
 #
 
+echo firewall
 case "$DISTRIBUTION" in
 	ubuntu)
 		sudo -nA ufw allow from any to any port 22 &&
@@ -844,6 +892,7 @@ esac
 # Reboot if needed
 #
 
+echo reboot
 if [ "$REBOOT" = "1" ]; then
 	case "$DISTRIBUTION" in
 		ubuntu|redhat|centos|suse|freebsd*)
