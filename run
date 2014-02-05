@@ -18,7 +18,7 @@ mkdir -p logs
 
 for host in "$@"; do
 	((
-		echo -n "Copying to host ... "
+		echo "Copying to host ... waiting"
 		scp -r -i ~/.ssh/dasbot.opendnssec.org \
 			-oStrictHostKeyChecking=no \
 			-oPreferredAuthentications=publickey \
@@ -33,7 +33,7 @@ for host in "$@"; do
 			keys \
 			"dasbot@$host": >/dev/null ||
 		exit 1
-		echo "done"
+		echo "Copying to host ... done"
 		
 		for what in bootstrap setup maintenance build; do
 			echo "Running $what ... waiting"
