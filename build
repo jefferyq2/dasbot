@@ -1,5 +1,56 @@
 #!/usr/bin/env bash
 
+myfetch() {
+	local url="$1"
+	local file="$2"
+	local sha="$3"
+	local file_sha=""
+	
+	if [ -z "$url" -o -z "$file" -o -z "$sha" ]; then
+		echo "myfetch error"
+		exit 1
+	fi
+
+	if [ -f "$file" ]; then
+		case "$DISTRIBUTION" in
+			redhat|centos|sunos)
+				file_sha=`sha1sum "$file" | awk '{ print $1 }'`
+				;;
+		
+			*)
+				echo "myfetch sha error"
+				exit 1
+				;;
+		esac
+
+		if [ "$file_sha" = "$sha" ]; then
+			return 0
+		fi
+	fi
+
+	rm -f -- "$file"
+	wget -O "$file" "$url" ||
+	exit 1
+
+	case "$DISTRIBUTION" in
+		redhat|centos|sunos)
+			file_sha=`sha1sum "$file" | awk '{ print $1 }'`
+			;;
+	
+		*)
+			echo "myfetch sha error"
+			exit 1
+			;;
+	esac
+
+	if [ "$file_sha" != "$sha" ]; then
+		echo "sha missmatch for $file"
+		exit 1
+	fi
+	
+	return 0
+}
+
 DISTRIBUTION=`cat dist 2>/dev/null`
 
 if [ -z "$DISTRIBUTION" ]; then
@@ -10,32 +61,36 @@ fi
 case "$DISTRIBUTION" in
 	redhat|centos)
 		if ! rpm -qa | grep -q '^cppunit-[0-9]'; then
-			rm -f cppunit-1.12.0-4.el5.1.x86_64.rpm
-			wget http://ftp.acc.umu.se/mirror/fedora/epel/5/x86_64/cppunit-1.12.0-4.el5.1.x86_64.rpm ||
-			exit 1
-			sha=`sha1sum cppunit-1.12.0-4.el5.1.x86_64.rpm | awk '{ print $1 }'`
-			if [ "$sha" != "befdcf3aae517fb28379655ad33989e4c66582c2" ]; then
-				echo "sha missmatch for cppunit-1.12.0-4.el5.1.x86_64.rpm"
-				exit 1
-			fi
+			myfetch "http://ftp.acc.umu.se/mirror/fedora/epel/5/x86_64/cppunit-1.12.0-4.el5.1.x86_64.rpm" \
+				"cppunit-1.12.0-4.el5.1.x86_64.rpm" \
+				"befdcf3aae517fb28379655ad33989e4c66582c2"
 			sudo -nA rpm -i cppunit-1.12.0-4.el5.1.x86_64.rpm ||
 			exit 1
 		fi
 		if ! rpm -qa | grep -q '^cppunit-devel-[0-9]'; then
-			rm -f cppunit-devel-1.12.0-4.el5.1.x86_64.rpm
-			wget http://ftp.acc.umu.se/mirror/fedora/epel/5/x86_64/cppunit-devel-1.12.0-4.el5.1.x86_64.rpm ||
-			exit 1
-			sha=`sha1sum cppunit-devel-1.12.0-4.el5.1.x86_64.rpm | awk '{ print $1 }'`
-			if [ "$sha" != "1204807fed1c75de2f168b79ffd9dbbd756a0f21" ]; then
-				echo "sha missmatch for cppunit-devel-1.12.0-4.el5.1.x86_64.rpm"
-				exit 1
-			fi
+			myfetch "http://ftp.acc.umu.se/mirror/fedora/epel/5/x86_64/cppunit-devel-1.12.0-4.el5.1.x86_64.rpm" \
+				"cppunit-devel-1.12.0-4.el5.1.x86_64.rpm" \
+				"1204807fed1c75de2f168b79ffd9dbbd756a0f21"
 			sudo -nA rpm -i cppunit-devel-1.12.0-4.el5.1.x86_64.rpm ||
 			exit 1
 		fi
 		;;
 
 	sunos)
+		myfetch "http://botan.randombit.net/files/Botan-1.10.7.tgz" \
+			"Botan-1.10.7.tgz" "54552cdafabea710f48cd4536a938ed329ef60dd"
+		
+		myfetch "http://downloads.sourceforge.net/project/cunit/CUnit/2.1-2/CUnit-2.1-2-src.tar.bz2" \
+			"CUnit-2.1-2-src.tar.bz2" "6c2d0627eb64c09c7140726d6bf814cf531a3ce0"
+		
+		myfetch "http://protobuf.googlecode.com/files/protobuf-2.4.1.tar.gz" \
+			"protobuf-2.4.1.tar.gz" "efc84249525007b1e3105084ea27e3273f7cbfb0"
+		
+		myfetch "http://downloads.sourceforge.net/project/cppunit/cppunit/1.12.1/cppunit-1.12.1.tar.gz" \
+			"cppunit-1.12.1.tar.gz" "f1ab8986af7a1ffa6760f4bacf5622924639bf4a"
+		
+		myfetch "https://wiki.opendnssec.org/download/attachments/2064460/finite.patch" \
+			"finite.patch" "cbd08636aba537c6a40fdebc1eb901fd2b56aa16"
 		;;
 esac
 
