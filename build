@@ -13,7 +13,7 @@ myfetch() {
 
 	if [ -f "$file" ]; then
 		case "$DISTRIBUTION" in
-			redhat|centos|sunos)
+			redhat|centos|sunos|suse)
 				file_sha=`sha1sum "$file" | awk '{ print $1 }'`
 				;;
 		
@@ -33,7 +33,7 @@ myfetch() {
 	exit 1
 
 	case "$DISTRIBUTION" in
-		redhat|centos|sunos)
+		redhat|centos|sunos|suse)
 			file_sha=`sha1sum "$file" | awk '{ print $1 }'`
 			;;
 	
@@ -58,6 +58,29 @@ if [ -z "$DISTRIBUTION" ]; then
 	exit 1
 fi
 
+BOTAN_URL="http://botan.randombit.net/files/Botan-1.10.7.tgz"
+BOTAN_FILE="Botan-1.10.7.tgz"
+BOTAN_SHA="54552cdafabea710f48cd4536a938ed329ef60dd"
+BOTAN_VERSION="1.10.7"
+
+CUNIT_URL="http://downloads.sourceforge.net/project/cunit/CUnit/2.1-2/CUnit-2.1-2-src.tar.bz2"
+CUNIT_FILE="CUnit-2.1-2-src.tar.bz2"
+CUNIT_SHA="6c2d0627eb64c09c7140726d6bf814cf531a3ce0"
+CUNIT_VERSION="2.1.2"
+
+PROTOBUF_URL="http://protobuf.googlecode.com/files/protobuf-2.4.1.tar.gz"
+PROTOBUF_FILE="protobuf-2.4.1.tar.gz"
+PROTOBUF_SHA="efc84249525007b1e3105084ea27e3273f7cbfb0"
+PROTOBUF_VERSION="2.4.1"
+
+CPPUNIT_URL="http://downloads.sourceforge.net/project/cppunit/cppunit/1.12.1/cppunit-1.12.1.tar.gz"
+CPPUNIT_FILE="cppunit-1.12.1.tar.gz"
+CPPUNIT_SHA="f1ab8986af7a1ffa6760f4bacf5622924639bf4a"
+CPPUNIT_VERSION="1.12.1"
+CPPUNIT_P1_URL="https://wiki.opendnssec.org/download/attachments/2064460/finite.patch"
+CPPUNIT_P1_FILE="finite.patch"
+CPPUNIT_P1_SHA="cbd08636aba537c6a40fdebc1eb901fd2b56aa16"
+
 case "$DISTRIBUTION" in
 	redhat|centos)
 		if ! rpm -qa | grep -q '^cppunit-[0-9]'; then
@@ -76,6 +99,59 @@ case "$DISTRIBUTION" in
 		fi
 		;;
 
+	suse)
+		rm -rf src
+		mkdir -p src
+		
+		myfetch $BOTAN_URL $BOTAN_FILE $BOTAN_SHA
+		
+		built=`cat built.botan 2>/dev/null`
+		if [ "$built" != "$BOTAN_VERSION" ]; then
+			(
+				cd src &&
+				gunzip -c "../$BOTAN_FILE" | tar xf - &&
+				cd Botan-$BOTAN_VERSION &&
+				./configure.py &&
+				make &&
+				sudo -nA make install
+			) &&
+			echo "$BOTAN_VERSION" > built.botan ||
+			exit 1
+		fi
+
+		myfetch $CUNIT_URL $CUNIT_FILE $CUNIT_SHA
+		
+		built=`cat built.cunit 2>/dev/null`
+		if [ "$built" != "$CUNIT_VERSION" ]; then
+			(
+				cd src &&
+				bunzip2 -c "../$CUNIT_FILE" | tar xf - &&
+				cd CUnit-2.1-2 &&
+				./configure &&
+				make &&
+				sudo -nA make install
+			) &&
+			echo "$CUNIT_VERSION" > built.cunit ||
+			exit 1
+		fi
+
+		myfetch $PROTOBUF_URL $PROTOBUF_FILE $PROTOBUF_SHA
+		
+		built=`cat built.protobuf 2>/dev/null`
+		if [ "$built" != "$PROTOBUF_VERSION" ]; then
+			(
+				cd src &&
+				gunzip -c "../$PROTOBUF_FILE" | tar xf - &&
+				cd protobuf-$PROTOBUF_VERSION &&
+				./configure &&
+				make &&
+				sudo -nA make install
+			) &&
+			echo "$PROTOBUF_VERSION" > built.protobuf ||
+			exit 1
+		fi
+		;;
+
 	sunos)
 		platform=`uname -p`
 		
@@ -89,11 +165,10 @@ case "$DISTRIBUTION" in
 		rm -rf src
 		mkdir -p src
 		
-		myfetch "http://botan.randombit.net/files/Botan-1.10.7.tgz" \
-			"Botan-1.10.7.tgz" "54552cdafabea710f48cd4536a938ed329ef60dd"
+		myfetch $BOTAN_URL $BOTAN_FILE $BOTAN_SHA
 		
 		built=`cat built.botan 2>/dev/null`
-		if [ "$built" != "1.10.7" ]; then
+		if [ "$built" != "$BOTAN_VERSION" ]; then
 			opt=""
 			case "$platform" in
 				i386)
@@ -110,38 +185,36 @@ case "$DISTRIBUTION" in
 			esac
 			(
 				cd src &&
-				gunzip -c "../Botan-1.10.7.tgz" | tar xf - &&
-				cd Botan-1.10.7 &&
+				gunzip -c "../$BOTAN_FILE" | tar xf - &&
+				cd Botan-$BOTAN_VERSION &&
 				./configure.py $opt &&
 				gmake -j $jobs &&
 				sudo -nA gmake install
 			) &&
-			echo "1.10.7" > built.botan ||
+			echo "$BOTAN_VERSION" > built.botan ||
 			exit 1
 		fi
 		
-		myfetch "http://downloads.sourceforge.net/project/cunit/CUnit/2.1-2/CUnit-2.1-2-src.tar.bz2" \
-			"CUnit-2.1-2-src.tar.bz2" "6c2d0627eb64c09c7140726d6bf814cf531a3ce0"
+		myfetch $CUNIT_URL $CUNIT_FILE $CUNIT_SHA
 		
 		built=`cat built.cunit 2>/dev/null`
-		if [ "$built" != "2.1.2" ]; then
+		if [ "$built" != "$CUNIT_VERSION" ]; then
 			(
 				cd src &&
-				bunzip2 -c "../CUnit-2.1-2-src.tar.bz2" | tar xf - &&
+				bunzip2 -c "../$CUNIT_FILE" | tar xf - &&
 				cd CUnit-2.1-2 &&
 				./configure &&
 				gmake -j $jobs &&
 				sudo -nA gmake install
 			) &&
-			echo "2.1.2" > built.cunit ||
+			echo "$CUNIT_VERSION" > built.cunit ||
 			exit 1
 		fi
 
-		myfetch "http://protobuf.googlecode.com/files/protobuf-2.4.1.tar.gz" \
-			"protobuf-2.4.1.tar.gz" "efc84249525007b1e3105084ea27e3273f7cbfb0"
+		myfetch $PROTOBUF_URL $PROTOBUF_FILE $PROTOBUF_SHA
 		
 		built=`cat built.protobuf 2>/dev/null`
-		if [ "$built" != "2.4.1" ]; then
+		if [ "$built" != "$PROTOBUF_VERSION" ]; then
 			opt=""
 			case "$platform" in
 				i386)
@@ -150,34 +223,31 @@ case "$DISTRIBUTION" in
 			esac
 			(
 				cd src &&
-				gunzip -c "../protobuf-2.4.1.tar.gz" | tar xf - &&
-				cd protobuf-2.4.1 &&
+				gunzip -c "../$PROTOBUF_FILE" | tar xf - &&
+				cd protobuf-$PROTOBUF_VERSION &&
 				./configure $opt &&
 				gmake -j $jobs &&
 				sudo -nA gmake install
 			) &&
-			echo "2.4.1" > built.protobuf ||
+			echo "$PROTOBUF_VERSION" > built.protobuf ||
 			exit 1
 		fi
 
-		myfetch "http://downloads.sourceforge.net/project/cppunit/cppunit/1.12.1/cppunit-1.12.1.tar.gz" \
-			"cppunit-1.12.1.tar.gz" "f1ab8986af7a1ffa6760f4bacf5622924639bf4a"
-		
-		myfetch "https://wiki.opendnssec.org/download/attachments/2064460/finite.patch" \
-			"finite.patch" "cbd08636aba537c6a40fdebc1eb901fd2b56aa16"
+		myfetch $CPPUNIT_URL $CPPUNIT_FILE $CPPUNIT_SHA
+		myfetch $CPPUNIT_P1_URL $CPPUNIT_P1_FILE $CPPUNIT_P1_SHA
 
 		built=`cat built.cppunit 2>/dev/null`
-		if [ "$built" != "1.12.1" ]; then
+		if [ "$built" != "$CPPUNIT_VERSION" ]; then
 			(
 				cd src &&
-				gunzip -c "../cppunit-1.12.1.tar.gz" | tar xf - &&
-				cd cppunit-1.12.1 &&
-				patch -p1 < "../../finite.patch" &&
+				gunzip -c "../$CPPUNIT_FILE" | tar xf - &&
+				cd cppunit-$CPPUNIT_VERSION &&
+				patch -p1 < "../../$CPPUNIT_P1_FILE" &&
 				./configure &&
 				gmake -j $jobs &&
 				sudo -nA gmake install
 			) &&
-			echo "1.12.1" > built.cppunit ||
+			echo "$CPPUNIT_VERSION" > built.cppunit ||
 			exit 1
 		fi
 
