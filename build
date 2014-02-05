@@ -77,20 +77,112 @@ case "$DISTRIBUTION" in
 		;;
 
 	sunos)
+		platform=`uname -p`
+		
+		jobs=1
+		case "$platform" in
+			sparc)
+				jobs=16
+				;;
+		esac
+
+		rm -rf src
+		mkdir -p src
+		
 		myfetch "http://botan.randombit.net/files/Botan-1.10.7.tgz" \
 			"Botan-1.10.7.tgz" "54552cdafabea710f48cd4536a938ed329ef60dd"
+		
+		built=`cat built.botan 2>/dev/null`
+		if [ "$built" != "1.10.7" ]; then
+			opt=""
+			case "$platform" in
+				i386)
+					opt="--disable-asm --cpu=i686"
+					;;
+	
+				sparc)
+					opt="--cpu=sparc64"
+					;;
+	
+				*)
+					exit 1
+					;;
+			esac
+			(
+				cd src &&
+				gunzip -c "../Botan-1.10.7.tgz" | tar xf - &&
+				cd Botan-1.10.7 &&
+				./configure.py $opt &&
+				gmake -j $jobs &&
+				sudo -nA gmake install
+			) &&
+			echo "1.10.7" > built.botan ||
+			exit 1
+		fi
 		
 		myfetch "http://downloads.sourceforge.net/project/cunit/CUnit/2.1-2/CUnit-2.1-2-src.tar.bz2" \
 			"CUnit-2.1-2-src.tar.bz2" "6c2d0627eb64c09c7140726d6bf814cf531a3ce0"
 		
+		built=`cat built.cunit 2>/dev/null`
+		if [ "$built" != "2.1.2" ]; then
+			(
+				cd src &&
+				bunzip2 -c "../CUnit-2.1-2-src.tar.bz2" | tar xf - &&
+				cd CUnit-2.1-2 &&
+				./configure &&
+				gmake -j $jobs &&
+				sudo -nA gmake install
+			) &&
+			echo "2.1.2" > built.cunit ||
+			exit 1
+		fi
+
 		myfetch "http://protobuf.googlecode.com/files/protobuf-2.4.1.tar.gz" \
 			"protobuf-2.4.1.tar.gz" "efc84249525007b1e3105084ea27e3273f7cbfb0"
 		
+		built=`cat built.protobuf 2>/dev/null`
+		if [ "$built" != "2.4.1" ]; then
+			opt=""
+			case "$platform" in
+				i386)
+					opt="--disable-64bit-solaris"
+					;;
+			esac
+			(
+				cd src &&
+				gunzip -c "../protobuf-2.4.1.tar.gz" | tar xf - &&
+				cd protobuf-2.4.1 &&
+				./configure $opt &&
+				gmake -j $jobs &&
+				sudo -nA gmake install
+			) &&
+			echo "2.4.1" > built.protobuf ||
+			exit 1
+		fi
+
 		myfetch "http://downloads.sourceforge.net/project/cppunit/cppunit/1.12.1/cppunit-1.12.1.tar.gz" \
 			"cppunit-1.12.1.tar.gz" "f1ab8986af7a1ffa6760f4bacf5622924639bf4a"
 		
 		myfetch "https://wiki.opendnssec.org/download/attachments/2064460/finite.patch" \
 			"finite.patch" "cbd08636aba537c6a40fdebc1eb901fd2b56aa16"
+
+		built=`cat built.cppunit 2>/dev/null`
+		if [ "$built" != "1.12.1" ]; then
+			(
+				cd src &&
+				gunzip -c "../cppunit-1.12.1.tar.gz" | tar xf - &&
+				cd cppunit-1.12.1 &&
+				patch -p1 < "../../finite.patch" &&
+				./configure &&
+				gmake -j $jobs &&
+				sudo -nA gmake install
+			) &&
+			echo "1.12.1" > built.cppunit ||
+			exit 1
+		fi
+
+		sudo -nA crle -u -l /usr/local/lib ||
+		exit 1
 		;;
 esac
 
