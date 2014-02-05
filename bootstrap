@@ -53,11 +53,11 @@ echo "Detected distribution $DISTRIBUTION"
 case "$DISTRIBUTION" in
 	freebsd)
 		if uname -a 2>/dev/null | grep -q "FreeBSD 9" 2>/dev/null; then
-			sudo pkg_add -Fr bash &&
+			sudo -nA pkg_add -Fr bash &&
 			echo "freebsd9" > dist ||
 			exit 1
 		elif uname -a 2>/dev/null | grep -q "FreeBSD 10" 2>/dev/null; then
-			sudo pkg install -y bash &&
+			sudo -nA pkg install -y bash &&
 			echo "freebsd10" > dist ||
 			exit 1
 		else

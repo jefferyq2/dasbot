@@ -11,16 +11,16 @@ case "$DISTRIBUTION" in
 	ubuntu)
 		export LC_ALL="en_US.UTF-8"
 		export LANGUAGE="en_US.UTF-8"
-		sudo apt-get -y autoremove ||
+		sudo -nA apt-get -y autoremove ||
 		exit 1
 		uname=`uname -r | sed 's%-\(server\|generic\)%%'`
 		purge_rc=`dpkg -l | grep '^rc' | awk '{ print $2 }'`
 		purge_kern=`dpkg -l | grep 'linux-\(headers\|image\)-[0-9]' | grep -v "$uname" | awk '{ print $2 }'`
 		if [ -n "$purge_rc" -o -n "$purge_kern" ]; then
-			sudo apt-get -y purge $purge_rc $purge_kern ||
+			sudo -nA apt-get -y purge $purge_rc $purge_kern ||
 			exit 1
 		fi
-		sudo apt-get clean ||
+		sudo -nA apt-get clean ||
 		exit 1
 		;;
 
@@ -28,11 +28,11 @@ case "$DISTRIBUTION" in
 		uname=`uname -r | sed 's%\.x86_64%%'`
 		remove=`rpm -qa | grep '^kernel' | grep -v "$uname"`
 		if [ -n "$remove" ]; then
-			sudo yum -y remove $remove ||
+			sudo -nA yum -y remove $remove ||
 			exit 1
 		fi
-		sudo yum -y clean packages &&
-		sudo yum -y clean expire-cache ||
+		sudo -nA yum -y clean packages &&
+		sudo -nA yum -y clean expire-cache ||
 		exit 1
 		;;
 esac
