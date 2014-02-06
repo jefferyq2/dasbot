@@ -13,10 +13,14 @@ myfetch() {
 
 	if [ -f "$file" ]; then
 		case "$DISTRIBUTION" in
-			redhat|centos|sunos|suse)
+			ubuntu|redhat|centos|sunos|suse)
 				file_sha=`sha1sum "$file" | awk '{ print $1 }'`
 				;;
-		
+
+			freebsd*)
+				file_sha=`sha1 -q "$file"`
+				;;
+
 			*)
 				echo "myfetch sha error"
 				exit 1
@@ -33,10 +37,14 @@ myfetch() {
 	exit 1
 
 	case "$DISTRIBUTION" in
-		redhat|centos|sunos|suse)
+		ubuntu|redhat|centos|sunos|suse)
 			file_sha=`sha1sum "$file" | awk '{ print $1 }'`
 			;;
-	
+
+		freebsd*)
+			file_sha=`sha1 -q "$file"`
+			;;
+
 		*)
 			echo "myfetch sha error"
 			exit 1
@@ -57,6 +65,9 @@ if [ -z "$DISTRIBUTION" ]; then
 	echo "No distribution?"
 	exit 1
 fi
+
+rm -rf src
+mkdir -p src
 
 BOTAN_URL="http://botan.randombit.net/files/Botan-1.10.7.tgz"
 BOTAN_FILE="Botan-1.10.7.tgz"
@@ -81,6 +92,20 @@ CPPUNIT_P1_URL="https://wiki.opendnssec.org/download/attachments/2064460/finite.
 CPPUNIT_P1_FILE="finite.patch"
 CPPUNIT_P1_SHA="cbd08636aba537c6a40fdebc1eb901fd2b56aa16"
 
+JUDY_URL="http://sourceforge.net/projects/judy/files/judy/Judy-1.0.5/Judy-1.0.5.tar.gz/download"
+JUDY_FILE="Judy-1.0.5.tar.gz"
+JUDY_SHA="3540f003509acac3b1260424380ddf97914f7745"
+JUDY_VERSION="1.0.5"
+
+VALIDNS_URL="http://www.validns.net/download/validns-0.7.tar.gz"
+VALIDNS_FILE="validns-0.7.tar.gz"
+VALIDNS_SHA="44ec8b8c561384c31134b8c7893a59c710069645"
+VALIDNS_VERSION="0.7"
+
+#
+# missing dependencies
+#
+
 case "$DISTRIBUTION" in
 	redhat|centos)
 		if ! rpm -qa | grep -q '^cppunit-[0-9]'; then
@@ -100,11 +125,7 @@ case "$DISTRIBUTION" in
 		;;
 
 	suse)
-		rm -rf src
-		mkdir -p src
-		
 		myfetch $BOTAN_URL $BOTAN_FILE $BOTAN_SHA
-		
 		built=`cat built.botan 2>/dev/null`
 		if [ "$built" != "$BOTAN_VERSION" ]; then
 			(
@@ -120,7 +141,6 @@ case "$DISTRIBUTION" in
 		fi
 
 		myfetch $CUNIT_URL $CUNIT_FILE $CUNIT_SHA
-		
 		built=`cat built.cunit 2>/dev/null`
 		if [ "$built" != "$CUNIT_VERSION" ]; then
 			(
@@ -136,7 +156,6 @@ case "$DISTRIBUTION" in
 		fi
 
 		myfetch $PROTOBUF_URL $PROTOBUF_FILE $PROTOBUF_SHA
-		
 		built=`cat built.protobuf 2>/dev/null`
 		if [ "$built" != "$PROTOBUF_VERSION" ]; then
 			(
@@ -150,6 +169,21 @@ case "$DISTRIBUTION" in
 			echo "$PROTOBUF_VERSION" > built.protobuf ||
 			exit 1
 		fi
+
+		myfetch $JUDY_URL $JUDY_FILE $JUDY_SHA
+		built=`cat built.judy 2>/dev/null`
+		if [ "$built" != "$JUDY_VERSION" ]; then
+			(
+				cd src &&
+				gunzip -c "../$JUDY_FILE" | tar xf - &&
+				cd judy-$JUDY_VERSION &&
+				./configure &&
+				make &&
+				sudo -nA make install
+			) &&
+			echo "$JUDY_VERSION" > built.judy ||
+			exit 1
+		fi
 		;;
 
 	sunos)
@@ -161,12 +195,8 @@ case "$DISTRIBUTION" in
 				jobs=16
 				;;
 		esac
-
-		rm -rf src
-		mkdir -p src
 		
 		myfetch $BOTAN_URL $BOTAN_FILE $BOTAN_SHA
-		
 		built=`cat built.botan 2>/dev/null`
 		if [ "$built" != "$BOTAN_VERSION" ]; then
 			opt=""
@@ -196,7 +226,6 @@ case "$DISTRIBUTION" in
 		fi
 		
 		myfetch $CUNIT_URL $CUNIT_FILE $CUNIT_SHA
-		
 		built=`cat built.cunit 2>/dev/null`
 		if [ "$built" != "$CUNIT_VERSION" ]; then
 			(
@@ -212,7 +241,6 @@ case "$DISTRIBUTION" in
 		fi
 
 		myfetch $PROTOBUF_URL $PROTOBUF_FILE $PROTOBUF_SHA
-		
 		built=`cat built.protobuf 2>/dev/null`
 		if [ "$built" != "$PROTOBUF_VERSION" ]; then
 			opt=""
@@ -235,7 +263,6 @@ case "$DISTRIBUTION" in
 
 		myfetch $CPPUNIT_URL $CPPUNIT_FILE $CPPUNIT_SHA
 		myfetch $CPPUNIT_P1_URL $CPPUNIT_P1_FILE $CPPUNIT_P1_SHA
-
 		built=`cat built.cppunit 2>/dev/null`
 		if [ "$built" != "$CPPUNIT_VERSION" ]; then
 			(
@@ -251,7 +278,97 @@ case "$DISTRIBUTION" in
 			exit 1
 		fi
 
+		myfetch $JUDY_URL $JUDY_FILE $JUDY_SHA
+		built=`cat built.judy 2>/dev/null`
+		if [ "$built" != "$JUDY_VERSION" ]; then
+			(
+				cd src &&
+				gunzip -c "../$JUDY_FILE" | tar xf - &&
+				cd judy-$JUDY_VERSION &&
+				./configure &&
+				gmake && # don't use jobs
+				sudo -nA gmake install
+			) &&
+			echo "$JUDY_VERSION" > built.judy ||
+			exit 1
+		fi
+		;;
+esac
+
+#
+# validns
+#
+
+case "$DISTRIBUTION" in
+	sunos)
+		myfetch $VALIDNS_URL $VALIDNS_FILE $VALIDNS_SHA
+		built=`cat built.validns 2>/dev/null`
+		if [ "$built" != "$VALIDNS_VERSION" ]; then
+			(
+				cd src &&
+				gunzip -c "../$VALIDNS_FILE" | tar xf - &&
+				cd validns-$VALIDNS_VERSION &&
+				gmake -j $jobs CC=gcc \
+					EXTRALPATH="-L/usr/local/ssl/lib -Wl,-R,/usr/local/ssl/lib" \
+					EXTRALIBS="-lnsl -lrt" &&
+				sudo -nA ginstall -m 755 validns /usr/local/bin/validns
+			) &&
+			echo "$VALIDNS_VERSION" > built.validns ||
+			exit 1
+		fi
+		;;
+
+	freebsd*)
+		myfetch $VALIDNS_URL $VALIDNS_FILE $VALIDNS_SHA
+		built=`cat built.validns 2>/dev/null`
+		if [ "$built" != "$VALIDNS_VERSION" ]; then
+			(
+				cd src &&
+				gunzip -c "../$VALIDNS_FILE" | tar xf - &&
+				cd validns-$VALIDNS_VERSION &&
+				make CFLAGS="-pthread" &&
+				sudo -nA install -m 755 validns /usr/local/bin/validns
+			) &&
+			echo "$VALIDNS_VERSION" > built.validns ||
+			exit 1
+		fi
+		;;
+
+	*)
+		myfetch $VALIDNS_URL $VALIDNS_FILE $VALIDNS_SHA
+		built=`cat built.validns 2>/dev/null`
+		if [ "$built" != "$VALIDNS_VERSION" ]; then
+			(
+				cd src &&
+				gunzip -c "../$VALIDNS_FILE" | tar xf - &&
+				cd validns-$VALIDNS_VERSION &&
+				make &&
+				sudo -nA install -m 755 validns /usr/local/bin/validns
+			) &&
+			echo "$VALIDNS_VERSION" > built.validns ||
+			exit 1
+		fi
+		;;
+esac
+
+#
+# refresh ld's
+#
+
+case "$DISTRIBUTION" in
+	sunos)
 		sudo -nA crle -u -l /usr/local/lib ||
+		exit 1
+		;;
+
+	ubuntu|redhat|centos|suse)
+		export PATH="$PATH:/sbin:/usr/sbin"
+		sudo -nA ldconfig ||
+		exit 1
+		;;
+
+	freebsd*)
+		sudo -nA /etc/rc.d/ldconfig start ||
 		exit 1
 		;;
 esac

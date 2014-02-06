@@ -82,7 +82,8 @@ case "$DISTRIBUTION" in
 			mysql-server \
 			libmysqlclient-dev \
 			git-svn \
-			subversion >>apt.log ||
+			subversion \
+			libjudy-dev >>apt.log ||
 		{ cat apt.log; exit 1; }
 		cat apt.log
 		packages=`grep '[0-9]* upgraded, [0-9]* newly installed, [0-9]* to remove and [0-9]* not upgraded.' apt.log | awk '{ a=a+$1+$3 } END { print a }'`
@@ -117,7 +118,8 @@ case "$DISTRIBUTION" in
 			mysql-server \
 			mysql-devel \
 			ntp \
-			wget >>yum.log &&
+			wget \
+			Judy-devel >>yum.log &&
 		echo chkconfig ntp &&
 		sudo -nA chkconfig ntpd on &&
 		echo chkconfig mysql &&
@@ -229,7 +231,8 @@ case "$DISTRIBUTION" in
 			mysql55-server:mysql-server- \
 			mysql55-client:mysql-client- \
 			git \
-			subversion;
+			subversion \
+			Judy;
 		do
 			chk="$pkg-"
 			if echo "$pkg" | grep -q ':'; then
@@ -330,7 +333,8 @@ case "$DISTRIBUTION" in
 			mysql55-server \
 			mysql55-client \
 			git \
-			subversion;
+			subversion \
+			Judy;
 		do
 			chk="$pkg-"
 			if echo "$pkg" | grep -q ':'; then
