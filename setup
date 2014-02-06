@@ -90,6 +90,9 @@ case "$DISTRIBUTION" in
 		if [ -n "$packages" -a "$packages" != "0" ]; then
 			REBOOT=1
 		fi
+		if [ -f /var/run/reboot-required ]; then
+			REBOOT=1
+		fi
 		;;
 		
 	redhat|centos)
