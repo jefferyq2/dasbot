@@ -305,6 +305,21 @@ case "$DISTRIBUTION" in
 		;;
 
 	freebsd9)
+		myfetch $BOTAN_URL $BOTAN_FILE $BOTAN_SHA
+		built=`cat built.botan 2>/dev/null`
+		if [ "$built" != "$BOTAN_VERSION" ]; then
+			(
+				cd src &&
+				gunzip -c "../$BOTAN_FILE" | tar xf - &&
+				cd Botan-$BOTAN_VERSION &&
+				./configure.py &&
+				make &&
+				sudo -nA make install
+			) &&
+			echo "$BOTAN_VERSION" > built.botan ||
+			exit 1
+		fi
+
 		myfetch $SQLITE3_URL $SQLITE3_FILE $SQLITE3_SHA
 		built=`cat built.sqlite 2>/dev/null`
 		if [ "$built" != "$SQLITE3_VERSION" ]; then
