@@ -236,7 +236,10 @@ case "$DISTRIBUTION" in
 			git \
 			subversion \
 			Judy \
-			gmake;
+			gmake \
+			autoconf \
+			automake \
+			libtool;
 		do
 			chk="$pkg-"
 			if echo "$pkg" | grep -q ':'; then
@@ -339,7 +342,10 @@ case "$DISTRIBUTION" in
 			git \
 			subversion \
 			Judy \
-			gmake;
+			gmake \
+			autoconf \
+			automake \
+			libtool;
 		do
 			chk="$pkg-"
 			if echo "$pkg" | grep -q ':'; then
