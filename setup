@@ -343,7 +343,8 @@ case "$DISTRIBUTION" in
 			gmake \
 			autoconf \
 			automake \
-			libtool;
+			libtool \
+			bind-tools;
 		do
 			chk="$pkg-"
 			if echo "$pkg" | grep -q ':'; then
