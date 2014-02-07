@@ -217,7 +217,6 @@ case "$DISTRIBUTION" in
 		for pkg in open-vm-tools-nox11 \
 			"openjdk6:openjdk6-[a-z0-9]*" \
 			libxml2 \
-			sqlite3 \
 			openssl \
 			botan \
 			ccache \
@@ -234,7 +233,6 @@ case "$DISTRIBUTION" in
 			mysql55-server:mysql-server- \
 			mysql55-client:mysql-client- \
 			git \
-			subversion \
 			Judy \
 			gmake \
 			autoconf \

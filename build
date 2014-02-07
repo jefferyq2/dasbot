@@ -102,6 +102,16 @@ VALIDNS_FILE="validns-0.7.tar.gz"
 VALIDNS_SHA="44ec8b8c561384c31134b8c7893a59c710069645"
 VALIDNS_VERSION="0.7"
 
+SQLITE3_URL="http://www.sqlite.org/2014/sqlite-autoconf-3080300.tar.gz"
+SQLITE3_FILE="sqlite-autoconf-3080300.tar.gz"
+SQLITE3_SHA="c2a21d71d0c7dc3af71cf90f04dfd22ecfb280c2"
+SQLITE3_VERSION="3.8.3"
+
+SUBVERSION_URL="http://mirrors.gigenet.com/apache/subversion/subversion-1.8.5.tar.gz"
+SUBVERSION_FILE="subversion-1.8.5.tar.gz"
+SUBVERSION_SHA="2859de4cdce4494cecc7a71df4dfbf7a765d7759"
+SUBVERSION_VERSION="1.8.5"
+
 #
 # missing dependencies
 #
@@ -290,6 +300,38 @@ case "$DISTRIBUTION" in
 				sudo -nA gmake install
 			) &&
 			echo "$JUDY_VERSION" > built.judy ||
+			exit 1
+		fi
+		;;
+
+	freebsd9)
+		myfetch $SQLITE3_URL $SQLITE3_FILE $SQLITE3_SHA
+		built=`cat built.sqlite 2>/dev/null`
+		if [ "$built" != "$SQLITE3_VERSION" ]; then
+			(
+				cd src &&
+				gunzip -c "../$SQLITE3_FILE" | tar xf - &&
+				cd sqlite-autoconf-3080300 &&
+				CFLAGS="-DSQLITE_ENABLE_FTS3=1 -DSQLITE_ENABLE_FTS3_PARENTHESIS=1 -DSQLITE_ENABLE_FTS4=1 -DSQLITE_USE_URI=1 -DSQLITE_ENABLE_COLUMN_METADATA=1 -DSQLITE_SECURE_DELETE=1 -DSQLITE_ENABLE_UNLOCK_NOTIFY=1" ./configure &&
+				gmake &&
+				sudo -nA gmake install
+			) &&
+			echo "$SQLITE3_VERSION" > built.sqlite ||
+			exit 1
+		fi
+
+		myfetch $SUBVERSION_URL $SUBVERSION_FILE $SUBVERSION_SHA
+		built=`cat built.subversion 2>/dev/null`
+		if [ "$built" != "$SUBVERSION_VERSION" ]; then
+			(
+				cd src &&
+				gunzip -c "../$SUBVERSION_FILE" | tar xf - &&
+				cd subversion-$SUBVERSION_VERSION &&
+				./configure --with-sqlite=/usr/local &&
+				gmake &&
+				sudo -nA gmake install
+			) &&
+			echo "$SUBVERSION_VERSION" > built.subversion ||
 			exit 1
 		fi
 		;;
