@@ -235,7 +235,8 @@ case "$DISTRIBUTION" in
 			mysql55-client:mysql-client- \
 			git \
 			subversion \
-			Judy;
+			Judy \
+			gmake;
 		do
 			chk="$pkg-"
 			if echo "$pkg" | grep -q ':'; then
@@ -337,7 +338,8 @@ case "$DISTRIBUTION" in
 			mysql55-client \
 			git \
 			subversion \
-			Judy;
+			Judy \
+			gmake;
 		do
 			chk="$pkg-"
 			if echo "$pkg" | grep -q ':'; then
