@@ -630,6 +630,26 @@ case "$DISTRIBUTION" in
 		;;
 esac
 
+echo user jenkins ccache
+case "$DISTRIBUTION" in
+	ubuntu|redhat|centos|suse)
+		sudo -nA su - -c 'ccache -M 500M && ccache -c' jenkins ||
+		exit 1
+		;;
+
+	sunos)
+		;;
+
+	freebsd*)
+		sudo -nA su - jenkins -c 'ccache -M 500M && ccache -c' ||
+		exit 1
+		;;
+
+	*)
+		exit 1
+		;;
+esac
+
 #
 # readonly user
 #
