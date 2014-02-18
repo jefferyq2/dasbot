@@ -117,6 +117,11 @@ LDNS_FILE="ldns-1.6.17.tar.gz"
 LDNS_SHA="4218897b3c002aadfc7280b3f40cda829e05c9a4"
 LDNS_VERSION="1.6.17"
 
+CCACHE_URL="http://samba.org/ftp/ccache/ccache-3.1.9.tar.gz"
+CCACHE_FILE="ccache-3.1.9.tar.gz"
+CCACHE_SHA="103c14171ba6eefc9e044097480b0951f02dc7fe"
+CCACHE_VERSION="3.1.9"
+
 #
 # missing dependencies
 #
@@ -305,6 +310,21 @@ case "$DISTRIBUTION" in
 				sudo -nA gmake install
 			) &&
 			echo "$JUDY_VERSION" > built.judy ||
+			exit 1
+		fi
+
+		myfetch $CCACHE_URL $CCACHE_FILE $CCACHE_SHA
+		built=`cat built.ccache 2>/dev/null`
+		if [ "$built" != "$CCACHE_VERSION" ]; then
+			(
+				cd src &&
+				gunzip -c "../$CCACHE_FILE" | tar xf - &&
+				cd ccache-$CCACHE_VERSION &&
+				./configure &&
+				gmake -j $jobs &&
+				sudo -nA gmake install
+			) &&
+			echo "$CCACHE_VERSION" > built.ccache ||
 			exit 1
 		fi
 		;;
