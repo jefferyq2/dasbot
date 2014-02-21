@@ -515,7 +515,7 @@ fi
 echo mysql db build
 if ! mysql -u root -B -e 'show databases' | grep -q '^build$'; then
 	mysqladmin -u root create build &&
-	mysql -u root -e 'grant all on test.* to build@localhost identified by "build"' ||
+	mysql -u root -e 'grant all on build.* to build@localhost identified by "build"' ||
 	exit 1
 fi
 
