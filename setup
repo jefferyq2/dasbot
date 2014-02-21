@@ -311,7 +311,7 @@ case "$DISTRIBUTION" in
 		echo pkg update &&
 		sudo pkg update &&
 		echo pkg upgrade &&
-		sudo pkg upgrade >upgrade.log ||
+		sudo pkg upgrade -y >upgrade.log ||
 		{ cat upgrade.log; exit 1; }
 		cat upgrade.log
 		if ! grep -q '^Nothing to do$' upgrade.log; then
