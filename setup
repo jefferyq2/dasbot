@@ -501,6 +501,9 @@ esac
 
 echo mysql secure
 mysql -u root -e 'DROP DATABASE test'
+mysql -u root -e 'DROP DATABASE build'
+mysql -u root -e 'DROP USER test'
+mysql -u root -e 'DROP USER build'
 mysql -u root -e 'DELETE FROM mysql.db WHERE Db="test" OR Db="test\\_%"'
 mysql -u root -e 'DELETE FROM mysql.user WHERE User=""' &&
 mysql -u root -e 'DELETE FROM mysql.user WHERE User="root" AND Host NOT IN ("localhost", "127.0.0.1", "::1")' &&
