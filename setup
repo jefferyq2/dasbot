@@ -650,6 +650,23 @@ case "$DISTRIBUTION" in
 		;;
 esac
 
+echo user jenkins chmod home
+case "$DISTRIBUTION" in
+	ubuntu|redhat|centos|suse)
+		sudo -nA su - -c 'chmod a+rx $HOME' jenkins ||
+		exit 1
+		;;
+
+	freebsd*|sunos)
+		sudo -nA su - jenkins -c 'chmod a+rx $HOME' ||
+		exit 1
+		;;
+
+	*)
+		exit 1
+		;;
+esac
+
 #
 # readonly user
 #
