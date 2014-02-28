@@ -640,10 +640,7 @@ case "$DISTRIBUTION" in
 		exit 1
 		;;
 
-	sunos)
-		;;
-
-	freebsd*)
+	freebsd*|sunos)
 		sudo -nA su - jenkins -c 'ccache -M 500M && ccache -c' ||
 		exit 1
 		;;
