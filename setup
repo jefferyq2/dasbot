@@ -208,6 +208,14 @@ case "$DISTRIBUTION" in
 		sudo -nA pkg_add -Fr bsdadminscripts &&
 		echo pkg_upgrade &&
 		sudo -nA -E pkg_upgrade -avX >upgrade.log ||
+		{
+			rm -rf pub &&
+			mkdir -p pub/FreeBSD/ports/amd64/packages-9-stable &&
+			fetch -mo pub/FreeBSD/ports/amd64/packages-9-stable/INDEX-9.bz2 ftp://ftp.freebsd.org/pub/FreeBSD/ports/amd64/packages-9-stable/INDEX-9.bz2 &&
+			bunzip2 pub/FreeBSD/ports/amd64/packages-9-stable/INDEX-9.bz2 &&
+			mv pub/FreeBSD/ports/amd64/packages-9-stable/INDEX-9 pub/FreeBSD/ports/amd64/packages-9-stable/INDEX &&
+			PACKAGEROOT=`pwd` sudo -nA -E pkg_upgrade -avX >>upgrade.log
+		} ||
 		{ cat upgrade.log; exit 1; }
 		cat upgrade.log
 		if grep -q '^Install [0-9]* package' upgrade.log; then
@@ -236,7 +244,8 @@ case "$DISTRIBUTION" in
 			gmake \
 			autoconf \
 			automake \
-			libtool;
+			libtool \
+			apr;
 		do
 			chk="$pkg-"
 			if echo "$pkg" | grep -q ':'; then
@@ -251,7 +260,7 @@ case "$DISTRIBUTION" in
 			fi
 			
 			rm -f install.log
-			if ! sudo -nA pkg_add -Fr "$pkg" 2>install.log; then
+			if ! sudo -nA -E pkg_add -Fr "$pkg" 2>install.log; then
 				cat install.log
 				exit 1
 			fi
