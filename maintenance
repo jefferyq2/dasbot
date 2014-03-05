@@ -36,7 +36,14 @@ case "$DISTRIBUTION" in
 		exit 1
 		;;
 
+
+	sunos)
+		sudo -nA rm -rf ~root/.cpan/build ||
+		exit 1
+		;;
+
 	suse)
+		sudo -nA rm -rf ~root/.cpan/build &&
 		sudo -nA zypper --non-interactive-include-reboot-patches -n clean ||
 		exit 1
 		;;

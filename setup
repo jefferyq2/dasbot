@@ -83,7 +83,9 @@ case "$DISTRIBUTION" in
 			libmysqlclient-dev \
 			git-svn \
 			subversion \
-			libjudy-dev >>apt.log ||
+			libjudy-dev \
+			bind9 \
+			libnet-dns-perl libnet-dns-sec-perl >>apt.log ||
 		{ cat apt.log; exit 1; }
 		cat apt.log
 		packages=`grep '[0-9]* upgraded, [0-9]* newly installed, [0-9]* to remove and [0-9]* not upgraded.' apt.log | awk '{ a=a+$1+$3 } END { print a }'`
@@ -93,6 +95,10 @@ case "$DISTRIBUTION" in
 		if [ -f /var/run/reboot-required ]; then
 			REBOOT=1
 		fi
+
+		sudo -nA service bind9 stop
+		sudo -nA update-rc.d bind9 disable ||
+		exit 1
 		;;
 		
 	redhat|centos)
@@ -122,7 +128,9 @@ case "$DISTRIBUTION" in
 			mysql-devel \
 			ntp \
 			wget \
-			Judy-devel >>yum.log &&
+			Judy-devel \
+			bind \
+			perl-Net-DNS perl-Net-DNS-SEC >>yum.log &&
 		echo chkconfig ntp &&
 		sudo -nA chkconfig ntpd on &&
 		echo chkconfig mysql &&
@@ -155,7 +163,8 @@ case "$DISTRIBUTION" in
 			git \
 			mysql \
 			libmysqlclient-devel \
-			ntp >>zypper.log &&
+			ntp \
+			bind >>zypper.log &&
 		echo chkconfig ntp &&
 		sudo -nA chkconfig ntp on &&
 		echo chkconfig mysql &&
@@ -174,6 +183,13 @@ case "$DISTRIBUTION" in
 		if [ -n "$packages" -a "$packages" != "0" ]; then
 			REBOOT=1
 		fi
+
+		echo suse cpan
+		sudo rm -f /usr/lib/perl5/5.10.0/CPAN/Config.pm &&
+		echo -e "yes\no conf prerequisites_policy follow\no conf commit\nquit\n" | sudo -nA cpan &&
+		sudo -nA sed -i -e 's%^1;$%$CPAN::FTP::connect_to_internet_ok = 1;\n1;%' /usr/lib/perl5/5.10.0/CPAN/Config.pm &&
+		sudo -nA cpan -i Net::DNS::SEC ||
+		exit 1
 		;;
 
 	freebsd9)
@@ -245,7 +261,9 @@ case "$DISTRIBUTION" in
 			autoconf \
 			automake \
 			libtool \
-			apr;
+			apr \
+			bind98 \
+			p5-Net-DNS p5-Net-DNS-SEC;
 		do
 			chk="$pkg-"
 			if echo "$pkg" | grep -q ':'; then
@@ -327,6 +345,11 @@ case "$DISTRIBUTION" in
 			REBOOT=1
 		fi
 
+		for pkg in bind-tools;
+		do
+			sudo -nA pkg delete -y "$pkg"
+		done
+
 		for pkg in open-vm-tools-nox11 \
 			"openjdk6:openjdk6-[a-z0-9]*" \
 			libxml2 \
@@ -352,7 +375,8 @@ case "$DISTRIBUTION" in
 			autoconf \
 			automake \
 			libtool \
-			bind-tools;
+			bind99 \
+			p5-Net-DNS p5-Net-DNS-SEC;
 		do
 			chk="$pkg-"
 			if echo "$pkg" | grep -q ':'; then
@@ -455,6 +479,13 @@ case "$DISTRIBUTION" in
 			sudo -nA svcadm enable ntp ||
 			exit 1
 		fi
+
+		echo sunos cpan
+		sudo rm -f /usr/perl5/5.12/lib/CPAN/Config.pm &&
+		echo -e "yes\nno\nno\nftp://ftp.sunet.se/pub/lang/perl/CPAN/\n\no conf prerequisites_policy follow\no conf make /usr/bin/gmake\no conf make_arg CC'=gcc LD=gcc CCCDLFLAGS=-fPIC OPTIMIZE=-O3'\no conf make_install_make_command /usr/bin/gmake\no conf commit\nquit\n" | sudo -nA /usr/perl5/5.12/bin/cpan &&
+		sudo -nA gsed -i -e 's%^1;$%$CPAN::FTP::connect_to_internet_ok = 1;\n1;%' /usr/perl5/5.12/lib/CPAN/Config.pm &&
+		sudo -nA /usr/perl5/5.12/bin/cpan -i Net::DNS::SEC ||
+		exit 1
 		;;
 
 	*)
@@ -649,9 +680,12 @@ case "$DISTRIBUTION" in
 		exit 1
 		;;
 
-	freebsd*|sunos)
+	freebsd*)
 		sudo -nA su - jenkins -c 'ccache -M 500M && ccache -c' ||
 		exit 1
+		;;
+
+	sunos)
 		;;
 
 	*)

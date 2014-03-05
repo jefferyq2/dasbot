@@ -327,6 +327,9 @@ case "$DISTRIBUTION" in
 			echo "$CCACHE_VERSION" > built.ccache ||
 			exit 1
 		fi
+		echo sunos setup ccache
+		sudo -nA su - jenkins -c 'export PATH="$PATH:/usr/local/bin"; ccache -M 500M && ccache -c' ||
+		exit 1
 		;;
 
 	freebsd9)
