@@ -96,9 +96,15 @@ case "$DISTRIBUTION" in
 			REBOOT=1
 		fi
 
+		echo ubuntu bind
 		sudo -nA service bind9 stop
-		sudo -nA update-rc.d bind9 disable ||
+		sudo -nA update-rc.d bind9 disable &&
+		if [ -f /etc/apparmor.d/usr.sbin.named ]; then
+			sudo -nA ln -sf /etc/apparmor.d/usr.sbin.named /etc/apparmor.d/disable/ &&
+			sudo -nA service apparmor reload
+		fi ||
 		exit 1
+
 		;;
 		
 	redhat|centos)
@@ -190,6 +196,13 @@ case "$DISTRIBUTION" in
 		sudo -nA sed -i -e 's%^1;$%$CPAN::FTP::connect_to_internet_ok = 1;\n1;%' /usr/lib/perl5/5.10.0/CPAN/Config.pm &&
 		sudo -nA cpan -i Net::DNS::SEC ||
 		exit 1
+
+		echo suse apparmor
+		if [ -f /etc/apparmor.d/usr.sbin.named ]; then
+			sudo -nA rm -f /etc/apparmor.d/usr.sbin.named ||
+			exit 1
+			REBOOT=1
+		fi
 		;;
 
 	freebsd9)
