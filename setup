@@ -652,12 +652,12 @@ fi
 echo user jenkins keys
 case "$DISTRIBUTION" in
 	ubuntu|redhat|centos|suse)
-		sudo -nA su - -c 'mkdir -p .ssh && chmod 700 .ssh && echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDTmMYjX/ZUbjWH4nQjKQlCjr8VIOd2uIQyOaAudwZNLnF2sIiioq9CIf9fB4Pa3JX7B6+XRbWQO9BD8Z/WR/fwupkTO9uSB6KtpSvM+PGxhdLgyqMAH4WdySBOxvFLYizUFKs3l+i1IGBz2qQIBeiYFvHxgocFmTlOUdY1uoqM9oatRo82EDm+vHaHs//kJgfGctN+MKcdKJsvA5iRySjtg6ncC5ywv2kSKq+LtTkm4uXV6CeKi7BXYSfNer8jjcAqTSNVf8Ob2OiqmbLhijW2YdDqJXAV2ZBPSZ0c7IwqovyiVBJ+GkAmavsd8I6KTKW79T4ThU+O2XSktCVDpd8t jenkins@freebsd-vm1.sinodun.com" > .ssh/authorized_keys && chmod 640 .ssh/authorized_keys' jenkins ||
+		sudo -nA su - -c 'mkdir -p .ssh && chmod 700 .ssh && echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCn13u8LWKtP+4e7nQ1RQOsxbGA/fls85h7YjACS/0EdrCFLP2q5BlbevEXAXTt65MdyawD1VLy7cskulkoTHxvBTzsZh44kYRSzR0FIxla4IHK9FcJJHrWqmLUegRett1Mnrr4VIruriNfwyM923vNEOdiDeRfDcpcYstMoQ+uEI6YI0qrC8BjbY0HysCGV+3N0AjE39vlLfpvWdMBtgf5PFlsgBvCD36k2kB+MDFo37qrJfEEtHhXJYh52BGXeoUdbivkBp2Z2q+a4b9xvKuqwPi/aCn2ILXKcPUDSPv4wUwEpVd+CupC0Nk1Bg2CGGOIqwVK7IVZpDmaHCIP4q2Z jenkins" > .ssh/authorized_keys && chmod 640 .ssh/authorized_keys' jenkins ||
 		exit 1
 		;;
 
 	sunos)
-		sudo -nA su - jenkins -c 'mkdir -p .ssh && chmod 700 .ssh && echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDTmMYjX/ZUbjWH4nQjKQlCjr8VIOd2uIQyOaAudwZNLnF2sIiioq9CIf9fB4Pa3JX7B6+XRbWQO9BD8Z/WR/fwupkTO9uSB6KtpSvM+PGxhdLgyqMAH4WdySBOxvFLYizUFKs3l+i1IGBz2qQIBeiYFvHxgocFmTlOUdY1uoqM9oatRo82EDm+vHaHs//kJgfGctN+MKcdKJsvA5iRySjtg6ncC5ywv2kSKq+LtTkm4uXV6CeKi7BXYSfNer8jjcAqTSNVf8Ob2OiqmbLhijW2YdDqJXAV2ZBPSZ0c7IwqovyiVBJ+GkAmavsd8I6KTKW79T4ThU+O2XSktCVDpd8t jenkins@freebsd-vm1.sinodun.com" > .ssh/authorized_keys && chmod 640 .ssh/authorized_keys' ||
+		sudo -nA su - jenkins -c 'mkdir -p .ssh && chmod 700 .ssh && echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCn13u8LWKtP+4e7nQ1RQOsxbGA/fls85h7YjACS/0EdrCFLP2q5BlbevEXAXTt65MdyawD1VLy7cskulkoTHxvBTzsZh44kYRSzR0FIxla4IHK9FcJJHrWqmLUegRett1Mnrr4VIruriNfwyM923vNEOdiDeRfDcpcYstMoQ+uEI6YI0qrC8BjbY0HysCGV+3N0AjE39vlLfpvWdMBtgf5PFlsgBvCD36k2kB+MDFo37qrJfEEtHhXJYh52BGXeoUdbivkBp2Z2q+a4b9xvKuqwPi/aCn2ILXKcPUDSPv4wUwEpVd+CupC0Nk1Bg2CGGOIqwVK7IVZpDmaHCIP4q2Z jenkins" > .ssh/authorized_keys && chmod 640 .ssh/authorized_keys' ||
 		exit 1
 		;;
 
@@ -667,7 +667,7 @@ case "$DISTRIBUTION" in
 			sudo -nA mkdir -p .ssh &&
 			sudo -nA chown jenkins:jenkins .ssh &&
 			sudo -nA chmod 700 .ssh &&
-			echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDTmMYjX/ZUbjWH4nQjKQlCjr8VIOd2uIQyOaAudwZNLnF2sIiioq9CIf9fB4Pa3JX7B6+XRbWQO9BD8Z/WR/fwupkTO9uSB6KtpSvM+PGxhdLgyqMAH4WdySBOxvFLYizUFKs3l+i1IGBz2qQIBeiYFvHxgocFmTlOUdY1uoqM9oatRo82EDm+vHaHs//kJgfGctN+MKcdKJsvA5iRySjtg6ncC5ywv2kSKq+LtTkm4uXV6CeKi7BXYSfNer8jjcAqTSNVf8Ob2OiqmbLhijW2YdDqJXAV2ZBPSZ0c7IwqovyiVBJ+GkAmavsd8I6KTKW79T4ThU+O2XSktCVDpd8t jenkins@freebsd-vm1.sinodun.com" | sudo -nA tee .ssh/authorized_keys >/dev/null &&
+			echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCn13u8LWKtP+4e7nQ1RQOsxbGA/fls85h7YjACS/0EdrCFLP2q5BlbevEXAXTt65MdyawD1VLy7cskulkoTHxvBTzsZh44kYRSzR0FIxla4IHK9FcJJHrWqmLUegRett1Mnrr4VIruriNfwyM923vNEOdiDeRfDcpcYstMoQ+uEI6YI0qrC8BjbY0HysCGV+3N0AjE39vlLfpvWdMBtgf5PFlsgBvCD36k2kB+MDFo37qrJfEEtHhXJYh52BGXeoUdbivkBp2Z2q+a4b9xvKuqwPi/aCn2ILXKcPUDSPv4wUwEpVd+CupC0Nk1Bg2CGGOIqwVK7IVZpDmaHCIP4q2Z jenkins" | sudo -nA tee .ssh/authorized_keys >/dev/null &&
 			sudo -nA chmod 640 .ssh/authorized_keys
 		) ||
 		exit 1
