@@ -52,6 +52,10 @@ case "$DISTRIBUTION" in
 	ubuntu)
 		export LC_ALL="en_US.UTF-8"
 		export LANGUAGE="en_US.UTF-8"
+		LIBBOTAN="libbotan1.8-dev"
+		if lsb_release -r 2>/dev/null | grep -q "14.04" 2>/dev/null; then
+			LIBBOTAN="libbotan1.10-dev"
+		fi
 		rm -f apt.log
 		echo apt-get update &&
 		sudo -nA apt-get -y update &&
@@ -64,7 +68,7 @@ case "$DISTRIBUTION" in
 			libxml2-dev \
 			libsqlite3-dev \
 			sqlite3 \
-			libbotan1.8-dev \
+			"$LIBBOTAN" \
 			libssl-dev \
 			autoconf \
 			automake \
